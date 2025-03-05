@@ -23,78 +23,92 @@ public static partial class GitService
     /// <param name="timeoutMilliseconds">Timeout to prevent deadlock. Defaults to 60 seconds</param>
     /// <returns></returns>
     public static async Task<string?> CloneGitHubRepo(string gitHubUrl, CancellationToken userCts, int timeoutMilliseconds = 60000)
+{
+    using var timeoutCts = new CancellationTokenSource(timeoutMilliseconds);
+    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, userCts);
+
+    // Prepare destination folder
+    if (Directory.Exists(TempRepoPath))
+        Directory.Delete(TempRepoPath, true);
+    Directory.CreateDirectory(TempRepoPath);
+
+    // Extract owner and repo from URL
+    var match = GitHubRepo().Match(gitHubUrl);
+    if (!match.Success)
     {
-        Log.Information($"Downloading GitHub repository: {gitHubUrl}");
-        
-        using var timeoutCts = new CancellationTokenSource(timeoutMilliseconds);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, userCts);
-
-        if (Directory.Exists(TempRepoPath)) Directory.Delete(TempRepoPath, true);
-        Directory.CreateDirectory(TempRepoPath);
-
-        // Extract owner and repo from URL
-        var match = GitHubRepo().Match(gitHubUrl);
-        if (!match.Success)
-        {
-            Log.Error("Invalid GitHub URL.");
-            return null;
-        }
-        var owner = match.Groups[1].Value;
-        var repo = match.Groups[2].Value;
-
-        var defaultBranch = "main";
-        var apiUrl = $"https://api.github.com/repos/{owner}/{repo}";
-        using (var httpClient = new HttpClient())
-        {
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-            try
-            {
-                var response = await httpClient.GetAsync(apiUrl, linkedCts.Token);
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync(linkedCts.Token);
-                    using var jsonDoc = JsonDocument.Parse(json);
-                    if (jsonDoc.RootElement.TryGetProperty("default_branch", out var branchElement))
-                        defaultBranch = branchElement.GetString() ?? defaultBranch;
-                }
-                else
-                {
-                    Log.Warning($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"API error: {ex.Message}. Using '{defaultBranch}'.");
-            }
-        }
-
-        var cloneOptions = new CloneOptions
-        {
-            FetchOptions = { Depth = 1 },
-            BranchName = defaultBranch,
-            IsBare = true
-        };
-
-        try
-        {
-            await Task.Run(() =>
-            {
-                Repository.Clone(gitHubUrl, TempRepoPath, cloneOptions);
-            }, linkedCts.Token);
-
-            return TempRepoPath;
-        }
-        catch (OperationCanceledException)
-        {
-            Log.Warning("Operation canceled");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Clone failed: {ex.Message}");
-        }
-
+        Log.Error("Invalid GitHub URL.");
         return null;
     }
+    var owner = match.Groups[1].Value;
+    var repo = match.Groups[2].Value;
+
+    // Get default branch (fallback to "main")
+    var defaultBranch = "main";
+    var apiUrl = $"https://api.github.com/repos/{owner}/{repo}";
+    using var httpClient = new HttpClient();
+    httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+    try
+    {
+        var response = await httpClient.GetAsync(apiUrl, linkedCts.Token);
+        if (response.IsSuccessStatusCode)
+        {
+            var json = await response.Content.ReadAsStringAsync(linkedCts.Token);
+            using var jsonDoc = JsonDocument.Parse(json);
+            if (jsonDoc.RootElement.TryGetProperty("default_branch", out var branchElement))
+                defaultBranch = branchElement.GetString() ?? defaultBranch;
+        }
+        else
+        {
+            Log.Warning($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Error($"API error: {ex.Message}. Using '{defaultBranch}'.");
+    }
+
+    // Download repository as a zip
+    var zipUrl = $"https://github.com/{owner}/{repo}/archive/refs/heads/{defaultBranch}.zip";
+    Log.Information($"Downloading {zipUrl}");
+    var tempZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.zip");
+
+    try
+    {
+        var response = await httpClient.GetAsync(zipUrl, linkedCts.Token);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log.Error($"Download failed: {response.StatusCode}");
+            return null;
+        }
+        await using (var fs = new FileStream(tempZipPath, FileMode.Create, FileAccess.Write)) await response.Content.CopyToAsync(fs, linkedCts.Token);
+
+        // Extract and flatten if zip contains a single folder
+        System.IO.Compression.ZipFile.ExtractToDirectory(tempZipPath, TempRepoPath);
+        var directories = Directory.GetDirectories(TempRepoPath);
+        if (directories.Length != 1) return TempRepoPath;
+        
+        var innerDir = directories[0];
+        foreach (var dir in Directory.GetDirectories(innerDir, "*", SearchOption.AllDirectories)) Directory.CreateDirectory(dir.Replace(innerDir, TempRepoPath));
+        foreach (var file in Directory.GetFiles(innerDir, "*.*", SearchOption.AllDirectories)) File.Move(file, file.Replace(innerDir, TempRepoPath));
+        Directory.Delete(innerDir, true);
+        
+        return TempRepoPath;
+    }
+    catch (OperationCanceledException)
+    {
+        Log.Warning("Operation canceled");
+    }
+    catch (Exception ex)
+    {
+        Log.Error($"Error: {ex.Message}");
+    }
+    finally
+    {
+        if (File.Exists(tempZipPath))
+            File.Delete(tempZipPath);
+    }
+    return null;
+}
 
     /// <summary>
     /// Automatically commits and pushes files to the GitHub repository
