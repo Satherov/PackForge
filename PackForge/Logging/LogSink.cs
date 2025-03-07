@@ -7,7 +7,7 @@ using Serilog.Formatting;
 
 namespace PackForge.Logging;
 
-public class AvaloniaLogSink(ObservableCollection<LogEntry> logEntries, ITextFormatter formatter) : ILogEventSink
+public class LogSink(ObservableCollection<LogEntry> logEntries, ITextFormatter formatter) : ILogEventSink
 {
     public void Emit(LogEvent logEvent)
     {

@@ -21,10 +21,10 @@ public abstract class JsonBuilder
         CancellationToken ct = default)
     {
         
-        if(Validator.CheckDirectoryExists(path)) return;
+        if(!Validator.DirectoryExists(path)) return;
 
         var mcInstance = Path.Combine(path, "minecraftinstance.json");
-        if(Validator.CheckFileExists(mcInstance, path)) return;
+        if(!Validator.FileExists(mcInstance, path)) return;
         
         var files = await ProcessMinecraftInstanceAsync(mcInstance, path, ct);
         if (files.Count == 0)
@@ -64,13 +64,13 @@ public abstract class JsonBuilder
         Log.Debug($"Processing minecraft instance file {pathToJson}");
         
         var modsFolder = Path.Combine(path, "mods");
-        if (Validator.CheckDirectoryExists(modsFolder)) return [];
+        if (!Validator.DirectoryExists(modsFolder)) return [];
         
         var shaderpacksFolder = Path.Combine(path, "shaderpacks");
-        Validator.CheckDirectoryExists(shaderpacksFolder, logLevel: "debug");
+        Validator.DirectoryExists(shaderpacksFolder, logLevel: "debug");
         
         var resourcepacksFolder = Path.Combine(path, "resourcepacks");
-        Validator.CheckDirectoryExists(resourcepacksFolder, logLevel: "debug");
+        Validator.DirectoryExists(resourcepacksFolder, logLevel: "debug");
         
         var jsonContent = await File.ReadAllTextAsync(pathToJson, ct);
         var root = JObject.Parse(jsonContent);

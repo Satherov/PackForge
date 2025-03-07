@@ -33,7 +33,7 @@ public class JarHelper
                     break;
             }
 
-            if(Validator.CheckNullOrWhiteSpace(entry, message: $"TOML file not found in {jarFilePath}", logLevel: "error")) return null;
+            if(Validator.IsNullOrWhiteSpace(entry, message: $"TOML file not found in {jarFilePath}", logLevel: "error")) return null;
 
             using var reader = new StreamReader(entry!.Open());
             var content = await reader.ReadToEndAsync();

@@ -23,7 +23,7 @@ public class AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null
         }
         catch (Exception ex)
         {
-            Log.Fatal($"AsyncRelayCommand experienced a fatal Error. Report this to the Author: {ex}");
+            Log.Fatal($"AsyncRelayCommand experienced a fatal Error. This should never happen! Report to the author: {ex}");
         }
     }
 

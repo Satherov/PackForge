@@ -2,18 +2,20 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using PackForge.ViewModels;
+using static PackForge.ViewModels.MainWindowViewModel;
 using Serilog;
 
-namespace PackForge.Core.Util;
+namespace PackForge.Core.Helpers;
 
 public static class FileHelper
 {
@@ -22,32 +24,22 @@ public static class FileHelper
     /// </summary>
     /// <param name="destinationFolder">Location to create the folder in</param>
     /// <param name="folderName">Name of the created root</param>
+    /// <param name="version">Used in the folder structure</param>
     /// <returns>Location of the folder created</returns>
-    public static async Task<string> PrepareRootFolderAsync(string? destinationFolder, string? folderName)
+    public static async Task<string> PrepareRootFolderAsync(string? destinationFolder, string? folderName, string? version)
     {
         Log.Information("Generating root folder");
-        
-        if (string.IsNullOrEmpty(destinationFolder))
-        {
-            Log.Error("Destination folder does not exist");
-            return string.Empty;
-        }
-
-        if (string.IsNullOrEmpty(folderName))
-        {
-            Log.Error("Folder name is not set");
-            return string.Empty;
-        }
+        if(Validator.IsNullOrWhiteSpace(destinationFolder) ||
+           Validator.IsNullOrWhiteSpace(folderName) ||
+           Validator.IsNullOrWhiteSpace(version)) return string.Empty;
 
         try
         {
-            var rootFolder = Path.Combine(destinationFolder, folderName);
-
-            // If the folder already exists, return the path and stop
+            var rootFolder = Path.Combine(destinationFolder!, folderName ?? "Unknown", version ?? "0.0.0");
+            
             if (Directory.Exists(rootFolder))
             {
                 Log.Debug("Root already exists");
-                Directory.Delete(rootFolder, true);
                 return rootFolder;
             };
             
@@ -92,18 +84,45 @@ public static class FileHelper
         }
     }
 
-    public static async Task CleanUpClientFolder(string rootPath)
+    public static string PrepareFolder(string? destinationFolder, string? folderName)
     {
-        Log.Information("Cleaning up client folder");
+        folderName ??= "Unknown";
         
-        if (!Directory.Exists(rootPath))
+        Log.Information($"Generating {folderName} folder");
+        
+        if(Validator.IsNullOrWhiteSpace(destinationFolder) ||
+           Validator.IsNullOrWhiteSpace(folderName)) return string.Empty;
+
+        try
         {
-            Log.Error($"The folder '{rootPath}' does not exist.");
-            return;
+            var targetPath = Path.Join(destinationFolder!, folderName!);
+            
+            if (Directory.Exists(targetPath))
+            {
+                Log.Debug($"{folderName} already exists");
+                Directory.Delete(targetPath, true);
+            };
+            
+            Log.Debug($"Creating new {folderName} folder");
+            Directory.CreateDirectory(targetPath);
+            
+            return targetPath;
         }
+        catch (Exception ex)
+        {
+            Log.Error($"Error preparing {folderName} folder: {ex.Message}");
+            return string.Empty;
+        }
+    }
+
+    public static async Task CleanUpEmptyFolders(string rootPath)
+    {
+        Log.Information("Cleaning up empty folders");
+
+        if (!Validator.DirectoryExists(rootPath)) return;
 
         var overwritesFolder = Path.Combine(rootPath, "overwrites");
-        if (Directory.Exists(overwritesFolder))
+        if (Validator.DirectoryExists(overwritesFolder))
         {
             Log.Debug("Deleting existing overwrites folder");
             Directory.Delete(overwritesFolder, true);
@@ -155,9 +174,10 @@ public static class FileHelper
     /// Opens a folder picker dialog and returns the selected folder path
     /// </summary>
     /// <param name="startLocation">Initial location to open if the path has already been defined before</param>
+    /// <param name="focusWindow">Focuses a window after the folder picker closes</param>
     /// <returns>The folder location selected</returns>
     /// <exception cref="SystemException">If you manage to call this function while the main windows doesn't exist yet. Should never happen!</exception>
-    public static async Task<string?> OpenFolderAsync(string? startLocation = null)
+    public static async Task<string?> OpenFolderAsync(string? startLocation = null, Window? focusWindow = null)
     {
         Log.Debug("Opening folder picker dialog");
         
@@ -182,6 +202,8 @@ public static class FileHelper
                 SuggestedStartLocation = startLocation != null ? await window.StorageProvider.TryGetFolderFromPathAsync(startLocation) : null
             });
 
+            if (!Validator.IsNullOrWhiteSpace(focusWindow, logLevel: "debug")) await WindowHelper.FocusWindow(() => focusWindow!);
+  
             if (!folderResult.Any())
             {
                 Log.Warning("No folder selected");
@@ -209,32 +231,27 @@ public static class FileHelper
     public static async Task CopyMatchingFilesAsync(
         string sourceDir,
         string targetDir,
-        Dictionary<string, (List<string> files, bool isWhitelist)> folderRules,
+        Dictionary<string, (FileSystemType, (List<string> files, bool isWhitelist))> folderRules,
         CancellationToken ct)
     {
-        if (!Directory.Exists(sourceDir))
-        {
-            Log.Warning($"Source directory does not exist: {sourceDir}");
-            return;
-        }
+        if(!Validator.DirectoryExists(sourceDir)) return;
         
         Log.Debug($"Source directory: {sourceDir}");
         Log.Debug($"Target directory: {targetDir}");
         
         var sourceSeg = sourceDir.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
         Log.Information($"Copying folders from {Path.Combine(sourceSeg[^2], sourceSeg[^1])} to {Path.GetFileName(targetDir)}");
-        
 
         Directory.CreateDirectory(targetDir);
 
-        foreach (var (name, (fileFilter, isWhitelist)) in folderRules)
+        foreach (var (name, (fileType, (fileFilter, isWhitelist))) in folderRules)
         {
             ct.ThrowIfCancellationRequested();
 
             var sourcePath = Path.Combine(sourceDir, name);
             var destPath = Path.Combine(targetDir, name);
             
-            if (File.Exists(sourcePath))
+            if (File.Exists(sourcePath) && fileType == FileSystemType.File)
             {
                 Log.Debug($"Copying {name} to {Path.GetFileName(destPath)}");
                 await CopySingleFileAsync(sourcePath, targetDir, [], false, new SemaphoreSlim(4), ct);
@@ -242,7 +259,7 @@ public static class FileHelper
                 return;
             }
 
-            if (!Directory.Exists(sourcePath))
+            if (!Directory.Exists(sourcePath)  && fileType == FileSystemType.Directory)
             {
                 Log.Warning($"{name} does not exist in {sourceDir}");
                 continue;

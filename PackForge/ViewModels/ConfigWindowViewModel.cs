@@ -15,16 +15,13 @@ public class ConfigWindowViewModel
 
     private void LoadData()
     {
-        BccConfig = ConfigData.GetConfigValue(() => ConfigData.BccConfig);
-        ModListConfig = ConfigData.GetConfigValue(() => ConfigData.ModListConfig);
+        BccConfig = DataManager.GetConfigValue(() => DataManager.BccConfig);
+        ModListConfig = DataManager.GetConfigValue(() => DataManager.ModListConfig);
     }
 
     public void SaveData()
     {
-        ConfigData.SetConfigValue(() => ConfigData.BccConfig, BccConfig);
-        ConfigData.SetConfigValue(() => ConfigData.ModListConfig, ModListConfig);
-
-        ConfigData.SaveConfigValue(() => ConfigData.BccConfig);
-        ConfigData.SaveConfigValue(() => ConfigData.ModListConfig);
+        DataManager.SetAndSaveConfigValue(() => DataManager.BccConfig, BccConfig);
+        DataManager.SetAndSaveConfigValue(() => DataManager.ModListConfig, ModListConfig);
     }
 }

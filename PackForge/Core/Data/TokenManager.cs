@@ -55,7 +55,7 @@ internal static class TokenManager
 
             // Otherwise, try reading it from disk
             var filePath = GetTokenFilePath(tokenName);
-            if(Validator.CheckFileExists(filePath)) return string.Empty;
+            if(!Validator.FileExists(filePath, logLevel: "debug")) return string.Empty;
             
             encryptedToken = await File.ReadAllTextAsync(filePath);
             TokenStore[tokenName] = encryptedToken;
@@ -77,9 +77,9 @@ internal static class TokenManager
     /// <param name="token">Value of the Token</param>
     public static async Task StoreTokenAsync(string tokenName, string? token)
     {
-        if (Validator.CheckFileExists(GetTokenFilePath(tokenName))) return;
+        if (Validator.FileExists(GetTokenFilePath(tokenName))) File.Delete(GetTokenFilePath(tokenName));
         
-        Log.Information($"Storing {tokenName} token");
+        Log.Debug($"Storing {tokenName} token");
 
         // Encrypt the token and store it in memory
         var encryptedToken = EncryptToken(token!);
@@ -87,7 +87,7 @@ internal static class TokenManager
 
         // Write the encrypted token to disk
         var filePath = GetTokenFilePath(tokenName);
-        if(Validator.CheckFileExists(filePath)) File.Delete(filePath);
+        if(Validator.FileExists(filePath)) File.Delete(filePath);
         try
         {
             await File.WriteAllTextAsync(filePath, encryptedToken);
@@ -115,7 +115,6 @@ internal static class TokenManager
             // Otherwise, use Windows DPAPI
             Log.Debug("Using DPAPI to encrypt token");
             var tokenBytes = Encoding.UTF8.GetBytes(token);
-            // CA1416: We're using DPAPI, so this warning can be ignored
 #pragma warning disable CA1416
             var encryptedBytes = Protect(tokenBytes, null, DataProtectionScope.CurrentUser);
 #pragma warning restore CA1416
@@ -149,6 +148,7 @@ internal static class TokenManager
 #pragma warning disable CA1416
             var decryptedBytes = Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
 #pragma warning restore CA1416
+            Log.Information($"Token decrypted successfully");
             return Encoding.UTF8.GetString(decryptedBytes);
         }
         catch (Exception e)

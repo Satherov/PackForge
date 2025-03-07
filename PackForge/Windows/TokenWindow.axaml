@@ -13,9 +13,7 @@
 
         <!-- Token Screen -->
         <Border Background="#2A2A40" CornerRadius="10" Margin="0, 0 , 0, 10">
-            <TextBlock Margin="10" TextAlignment="Center">
-                Token Window
-            </TextBlock>
+            <TextBlock Margin="10" TextAlignment="Center" Text="Token Window"/>
         </Border>
 
         <!-- GitHub Token -->

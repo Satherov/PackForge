@@ -6,24 +6,40 @@ namespace PackForge.Core.Helpers;
 
 public static class Validator
 {
-    public static bool CheckDirectoryExists(string? value, string? path = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
+    /// <param name="value">Value to check</param>
+    /// <param name="path">Optional: Additional path to display in the log</param>
+    /// <param name="logLevel">Optional: The level at which to display the log entry. Default: Warning</param>
+    /// <param name="variableName">Optional: Variable name to display in the log. Default: Literal name of 'value'</param>
+    /// <returns>Does the directory exist?</returns>
+    public static bool DirectoryExists(string? value, string? path = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
     {
-        if (Directory.Exists(value)) return false;
-        HandleLogLevel($"{GetVariableName(variableName)} not found" + (string.IsNullOrWhiteSpace(path) ? "" : $" at {path}"), logLevel);
-        return true;
+        if (Directory.Exists(value)) return true;
+        HandleLogLevel($"{Path.GetFileName(value) ?? GetVariableName(variableName)} not found" + (string.IsNullOrWhiteSpace(path) ? "" : $" at {path}"), logLevel);
+        return false;
+    }
+
+    /// <param name="value">Value to check</param>
+    /// <param name="path">Optional: Additional path to display in the log</param>
+    /// <param name="logLevel">Optional: The level at which to display the log entry. Default: Warning</param>
+    /// <param name="variableName">Optional: Variable name to display in the log. Default: Literal name of 'value'</param>
+    /// <returns>Does the file exist?</returns>
+    public static bool FileExists(string? value, string? path = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
+    {
+        if (File.Exists(value)) return true;
+        HandleLogLevel($"{Path.GetFileName(value) ?? GetVariableName(variableName)} not found" + (string.IsNullOrWhiteSpace(path) ? "" : $" at {path}"), logLevel);
+        return false;
     }
     
-    public static bool CheckFileExists(string? value, string? path = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
+
+    /// <param name="value">Value to check</param>
+    /// <param name="message">Optional: Additional message to display in the log</param>
+    /// <param name="logLevel">Optional: The level at which to display the log entry. Default: Warning</param>
+    /// <param name="variableName">Optional: Variable name to display in the log. Default: Literal name of 'value'</param>
+    /// <typeparam name="T">Type of the value</typeparam>
+    /// <returns>Is the value null or a white space?</returns>
+    public static bool IsNullOrWhiteSpace<T>(T? value, string? message = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
     {
-        if (File.Exists(value)) return false;
-        HandleLogLevel($"{GetVariableName(variableName)} not found" + (string.IsNullOrWhiteSpace(path) ? "" : $" at {path}"), logLevel);
-        return true;
-    }
-    
-    public static bool CheckNullOrWhiteSpace<T>(T? value, string? message = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
-    {
-        if(value is not null) return false;
-        if (value is string && !string.IsNullOrWhiteSpace(value.ToString())) return false;
+        if ((value is string && !string.IsNullOrWhiteSpace(value.ToString())) || (value is not string && value is not null)) return false;
         HandleLogLevel(message ?? $"{GetVariableName(variableName)} is empty" , logLevel);
         return true;
     }
@@ -36,11 +52,13 @@ public static class Validator
             case "debug": Log.Debug(message); break;
             case "warning": Log.Warning(message); break;
             case "error": Log.Error(message); break;
+            case "none": break;
         };
     }
     
-    private static string GetVariableName(string variableName)
+    private static string GetVariableName(string? variableName = null)
     {
+        variableName ??= string.Empty;
         var splitIndex = -1;
         for (var i = 0; i < variableName.Length; i++)
         {
@@ -49,9 +67,12 @@ public static class Validator
             break;
         }
 
-        var firstPart = variableName[..splitIndex];
-        var secondPart = variableName[splitIndex..];
+        if (splitIndex <= 0) return variableName;
         
-        return splitIndex == -1 ? variableName : $"{firstPart} {secondPart}";
+        var firstPart = variableName[..splitIndex];
+        firstPart = char.ToUpper(firstPart[0]) + firstPart[1..];
+        var secondPart = variableName[splitIndex..];
+        return $"{firstPart} {secondPart}";
+
     }
 }

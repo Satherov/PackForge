@@ -5,6 +5,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using PackForge.Core.Helpers;
 using Serilog;
 
 namespace PackForge.Core.Service;
@@ -15,49 +17,49 @@ public static partial class MavenService
     private const string NeoForgeMavenBaseUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge/";
     private const string ForgeMavenBaseUrl = "https://maven.minecraftforge.net/net/minecraftforge/forge/";
 
-    public static async Task<List<string>> FetchAvailableVersions(string loader, string version)
+    public static async Task<List<string>> FetchAvailableVersions(string loaderType, string mcVersion)
     {
         try
         {
-            var metadataUrl = loader switch
+            var metadataUrl = loaderType switch
             {
                 "NeoForge" => NeoForgeMavenBaseUrl,
                 "Forge" => ForgeMavenBaseUrl,
-                _ => throw new ArgumentException($"Unknown loader: {loader}")
+                _ => throw new ArgumentException($"Unknown loader: {loaderType}")
             };
 
             var xmlContent = await HttpClient.GetStringAsync(metadataUrl + "maven-metadata.xml");
-
-            var versionMatches = Version().Matches(xmlContent)
-                .Select(m => m.Groups["version"].Value)
+            var versionMatches = XDocument.Parse(xmlContent)
+                .Descendants("version")
+                .Select(e => e.Value)
                 .ToList();
 
-            if (loader.Equals("NeoForge"))
+            if (loaderType.Equals("NeoForge"))
             {
-                var versionParts = version.Split('.');
-                version = versionParts.Length switch
+                var versionParts = mcVersion.Split('.');
+                mcVersion = versionParts.Length switch
                 {
-                    1 => $"{version}.0.0",
-                    2 => $"{version}.0",
-                    _ => version
+                    1 => $"{mcVersion}.0.0",
+                    2 => $"{mcVersion}.0",
+                    _ => mcVersion
                 };
+                mcVersion = mcVersion.Split('.')[1];
             }
 
-            var expectedPrefix = loader switch
+            var expectedPrefix = loaderType switch
             {
-                "NeoForge" => $"{version.Split('.')[1]}.{version.Split('.')[2]}",
-                "Forge" => $"{version}-",
+                "NeoForge" => $"{mcVersion}.",
+                "Forge" => $"{mcVersion}-",
                 _ => ""
             };
+            
+            var filteredVersions = versionMatches.Where(v => v.StartsWith(expectedPrefix)).ToList();
 
-            var filteredVersions = versionMatches
-                .Where(v => v.StartsWith(expectedPrefix))
-                .ToList();
+            if (filteredVersions.Count == 0) throw new InvalidOperationException($"No versions found matching Minecraft version {mcVersion} in Maven metadata XML");
+            
+            Log.Information($"Successfully returned available versions from maven for {loaderType} {mcVersion}");
+            return filteredVersions;
 
-            if (filteredVersions.Count != 0) return filteredVersions;
-
-            throw new InvalidOperationException(
-                $"No versions found matching Minecraft version {version} in Maven metadata XML");
         }
         catch (Exception ex)
         {
@@ -67,39 +69,41 @@ public static partial class MavenService
     }
 
 
-    public static async Task DownloadLoader(string loader, string version, string? savePath)
+    public static async Task DownloadLoader(string? loaderType, string? loaderVersion, string? savePath)
     {
-        if (string.IsNullOrEmpty(version) || string.IsNullOrEmpty(savePath))
-        {
-            Log.Warning("Version or save path is invalid");
-            return;
-        }
+        if(Validator.IsNullOrWhiteSpace(loaderType) ||
+           Validator.IsNullOrWhiteSpace(loaderVersion) ||
+           !Validator.DirectoryExists(savePath)) return;
+        
+        var loader = string.Join("-", loaderType!, loaderVersion);
+        
+        Log.Information($"Downloading {loader} to {savePath}");
 
-        var installerUrl = loader switch
+        var installerUrl = loaderType switch
         {
-            "NeoForge" => $"{NeoForgeMavenBaseUrl}{version}/neoforge-{version}-installer.jar",
-            "Forge" => $"{ForgeMavenBaseUrl}{version}/forge-{version}-installer.jar",
-            _ => throw new ArgumentException($"Unknown loader: {loader}")
+            "NeoForge" => $"{NeoForgeMavenBaseUrl}{loaderVersion}/{loader.ToLowerInvariant()}-installer.jar",
+            "Forge" => $"{ForgeMavenBaseUrl}{loaderVersion}/{loader.ToLowerInvariant()}-installer.jar",
+            _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
 
-        var destinationFile = loader switch
+        var destinationFile = loaderType switch
         {
-            "NeoForge" => Path.Combine(savePath, $"neoforge-{version}-installer.jar"),
-            "Forge" => Path.Combine(savePath, $"forge-{version}-installer.jar"),
-            _ => throw new ArgumentException($"Unknown loader: {loader}")
+            "NeoForge" => Path.Join(savePath!, $"{loader}-installer.jar"),
+            "Forge" => Path.Join(savePath!, $"{loader}-installer.jar"),
+            _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
 
         try
         {
-            Log.Information($"Downloading Modloader {version}");
+            Log.Information($"Downloading {loader}");
             var fileBytes = await HttpClient.GetByteArrayAsync(installerUrl);
             await File.WriteAllBytesAsync(destinationFile, fileBytes);
 
-            Log.Information($"Modlaoder {version} downloaded to: {destinationFile}");
+            Log.Information($"{loader} downloaded to: {destinationFile}");
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to download Modloader {version}: {ex.Message}");
+            Log.Error($"Failed to download {loader}: {ex.Message}");
         }
     }
 

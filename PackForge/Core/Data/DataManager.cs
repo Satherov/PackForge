@@ -10,7 +10,7 @@ using Serilog;
 
 namespace PackForge.Core.Data;
 
-public static class ConfigData
+public static class DataManager
 {
     private static ConfigDataContainer _container = new();
 
@@ -39,6 +39,15 @@ public static class ConfigData
     {
         return File.Exists(AppDataPath);
     }
+    
+    /// <summary>
+    /// Creates the config file with default values.
+    /// </summary>
+    private static void CreateConfig()
+    {
+        _container = new ConfigDataContainer();
+        SaveConfig();
+    }
 
     /// <summary>
     /// Loads configuration from the JSON file.
@@ -66,7 +75,7 @@ public static class ConfigData
         }
     }
 
-    public static void SaveConfigValue<T>(Expression<Func<T>> propertyExpression)
+    private static void SaveConfigValue<T>(Expression<Func<T>> propertyExpression)
     {
         try
         {
@@ -100,6 +109,25 @@ public static class ConfigData
             Log.Error($"Error saving config value for '{propertyExpression}': {e.Message}");
         }
     }
+    
+    public static void SetAndSaveConfigValue<T>(Expression<Func<T>> propertyExpression, T value)
+    {
+        try
+        {
+            if (propertyExpression.Body is MemberExpression { Member: PropertyInfo property })
+            {
+                property.SetValue(_container, value);
+                SaveConfigValue(propertyExpression);
+                return;
+            }
+
+            Log.Warning($"Invalid property expression: {propertyExpression}. Unable to set value");
+        }
+        catch (Exception e)
+        {
+            Log.Error($"Error setting config value for '{propertyExpression}': {e.Message}");
+        }
+    }
 
 
     /// <summary>
@@ -119,15 +147,6 @@ public static class ConfigData
         {
             Log.Error($"Error saving config: {ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// Creates the config file with default values.
-    /// </summary>
-    private static void CreateConfig()
-    {
-        _container = new ConfigDataContainer();
-        SaveConfig();
     }
 
     /// <summary>
@@ -238,12 +257,25 @@ public static class ConfigData
         set => _container.Author = value;
     }
 
+    
     public static List<string> ExcludedMods
     {
         get => _container.ExcludedMods;
         set => _container.ExcludedMods = value;
     }
 
+    
+    public static string ClientOverwritePath
+    {
+        get => _container.ClientOverwritePath;
+        set => _container.ClientOverwritePath = value;
+    }
+    
+    public static string ServerOverwritePath
+    {
+        get => _container.ServerOverwritePath;
+        set => _container.ServerOverwritePath = value;
+    }
 
     public static bool BccConfig
     {
@@ -273,7 +305,12 @@ public class ConfigDataContainer
     public string ModpackVersion { get; set; } = string.Empty;
     public string CurseforgeId { get; set; } = string.Empty;
     public string Author { get; set; } = string.Empty;
+    
     public List<string> ExcludedMods { get; set; } = [];
+    
+    public string ClientOverwritePath { get; set; } = string.Empty;
+    public string ServerOverwritePath { get; set; } = string.Empty;
+    
     public bool BccConfig { get; set; }
     public bool ModListConfig { get; set; }
 }

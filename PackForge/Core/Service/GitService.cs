@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using LibGit2Sharp;
+using PackForge.Core.Helpers;
 using Serilog;
 using Signature = Tmds.DBus.Protocol.Signature;
 
@@ -13,102 +14,120 @@ namespace PackForge.Core.Service;
 
 public static partial class GitService
 {
-    private static readonly string TempRepoPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-
+    private static readonly string TempRepoPath;
+    private static readonly string TempPath;
+    
+    static GitService()
+    {
+        var path = Path.GetTempPath();
+        TempRepoPath = Path.Combine(path, "PackForge", "TempRepo");
+        TempPath = path;
+    }
+    
+    public static async Task<string> SilentCloneGitHubRepo(string? gitHubUrl, CancellationToken cts)
+    {
+        Log.Debug("Starting silent clone task...");
+        if (!Validator.IsNullOrWhiteSpace(gitHubUrl) && await IsValidGitHubRepoAsync(gitHubUrl!, true)) return await CloneGitHubRepo(gitHubUrl!, cts, true);
+        Log.Debug("Invalid GitHub repository URL provided to silent task");
+        return string.Empty;
+    }
+    
     /// <summary>
     /// Clones the GitHub repository to a temporary folder for further use
     /// </summary>
     /// <param name="gitHubUrl">Url to clone from</param>
     /// <param name="userCts">CancellationToken used for user requested process killing</param>
+    /// <param name="silent">Defines the log level for downloads. false = default, true = debug</param>
     /// <param name="timeoutMilliseconds">Timeout to prevent deadlock. Defaults to 60 seconds</param>
     /// <returns></returns>
-    public static async Task<string?> CloneGitHubRepo(string gitHubUrl, CancellationToken userCts, int timeoutMilliseconds = 60000)
-{
-    using var timeoutCts = new CancellationTokenSource(timeoutMilliseconds);
-    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, userCts);
-
-    // Prepare destination folder
-    if (Directory.Exists(TempRepoPath))
-        Directory.Delete(TempRepoPath, true);
-    Directory.CreateDirectory(TempRepoPath);
-
-    // Extract owner and repo from URL
-    var match = GitHubRepo().Match(gitHubUrl);
-    if (!match.Success)
+    public static async Task<string> CloneGitHubRepo(string gitHubUrl, CancellationToken userCts, bool silent = false, int timeoutMilliseconds = 60000)
     {
-        Log.Error("Invalid GitHub URL.");
-        return null;
-    }
-    var owner = match.Groups[1].Value;
-    var repo = match.Groups[2].Value;
-
-    // Get default branch (fallback to "main")
-    var defaultBranch = "main";
-    var apiUrl = $"https://api.github.com/repos/{owner}/{repo}";
-    using var httpClient = new HttpClient();
-    httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-    try
-    {
-        var response = await httpClient.GetAsync(apiUrl, linkedCts.Token);
-        if (response.IsSuccessStatusCode)
-        {
-            var json = await response.Content.ReadAsStringAsync(linkedCts.Token);
-            using var jsonDoc = JsonDocument.Parse(json);
-            if (jsonDoc.RootElement.TryGetProperty("default_branch", out var branchElement))
-                defaultBranch = branchElement.GetString() ?? defaultBranch;
-        }
-        else
-        {
-            Log.Warning($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'.");
-        }
-    }
-    catch (Exception ex)
-    {
-        Log.Error($"API error: {ex.Message}. Using '{defaultBranch}'.");
-    }
-
-    // Download repository as a zip
-    var zipUrl = $"https://github.com/{owner}/{repo}/archive/refs/heads/{defaultBranch}.zip";
-    Log.Information($"Downloading {zipUrl}");
-    var tempZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.zip");
-
-    try
-    {
-        var response = await httpClient.GetAsync(zipUrl, linkedCts.Token);
-        if (!response.IsSuccessStatusCode)
-        {
-            Log.Error($"Download failed: {response.StatusCode}");
-            return null;
-        }
-        await using (var fs = new FileStream(tempZipPath, FileMode.Create, FileAccess.Write)) await response.Content.CopyToAsync(fs, linkedCts.Token);
-
-        // Extract and flatten if zip contains a single folder
-        System.IO.Compression.ZipFile.ExtractToDirectory(tempZipPath, TempRepoPath);
-        var directories = Directory.GetDirectories(TempRepoPath);
-        if (directories.Length != 1) return TempRepoPath;
+        if(silent) Log.Debug($"Downloading GitHub repository: {gitHubUrl}");
+        else Log.Information($"Downloading GitHub repository: {gitHubUrl}");
         
-        var innerDir = directories[0];
-        foreach (var dir in Directory.GetDirectories(innerDir, "*", SearchOption.AllDirectories)) Directory.CreateDirectory(dir.Replace(innerDir, TempRepoPath));
-        foreach (var file in Directory.GetFiles(innerDir, "*.*", SearchOption.AllDirectories)) File.Move(file, file.Replace(innerDir, TempRepoPath));
-        Directory.Delete(innerDir, true);
-        
-        return TempRepoPath;
+        using var timeoutCts = new CancellationTokenSource(timeoutMilliseconds);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, userCts);
+
+        if (Validator.DirectoryExists(GetTempPath()))
+        {
+            Log.Debug("Deleting existing temp repo");
+            await DeleteTempRepo(silent);
+        }
+        Log.Debug("Creating new temp repo");
+        Directory.CreateDirectory(GetTempRepoPath());
+
+        // Extract owner and repo from URL
+        var match = GitHubRepo().Match(gitHubUrl);
+        if (!match.Success)
+        {
+            Log.Error($"GitHub url '{gitHubUrl}' did not match pattern");
+            return string.Empty;
+        }
+        var owner = match.Groups[1].Value;
+        var repo = match.Groups[2].Value;
+
+        var defaultBranch = "main";
+        var apiUrl = $"https://api.github.com/repos/{owner}/{repo}";
+        using (var httpClient = new HttpClient())
+        {
+            Log.Debug($"Requesting default branch from GitHub API");
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+            try
+            {
+                var response = await httpClient.GetAsync(apiUrl, linkedCts.Token);
+                if (response.IsSuccessStatusCode)
+                {
+                    Log.Debug($"GitHub API returned {response.StatusCode}");
+                    var json = await response.Content.ReadAsStringAsync(linkedCts.Token);
+                    using var jsonDoc = JsonDocument.Parse(json);
+                    if (jsonDoc.RootElement.TryGetProperty("default_branch", out var branchElement))
+                        defaultBranch = branchElement.GetString() ?? defaultBranch;
+                    Log.Debug($"Returned default branch: {defaultBranch}");
+                }
+                else
+                {
+                    if(silent) Log.Debug($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'");
+                    else Log.Warning($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'");
+                }
+            }
+            catch (Exception ex)
+            {
+                if(silent) Log.Debug($"API error: {ex.Message}. Using '{defaultBranch}'");
+                else Log.Error($"API error: {ex.Message}. Using '{defaultBranch}'");
+            }
+        }
+
+        var cloneOptions = new CloneOptions
+        {
+            FetchOptions =
+            {
+                Depth = 1
+            },
+            BranchName = defaultBranch
+        };
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                Repository.Clone(gitHubUrl, GetTempRepoPath(), cloneOptions);
+            }, linkedCts.Token);
+
+            if(silent) Log.Debug($"Successfully downloaded GitHub repository: {gitHubUrl}");
+            else Log.Information($"Successfully downloaded GitHub repository: {gitHubUrl}");
+            return GetTempRepoPath();
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Warning("Operation canceled");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Clone failed: {ex.Message}");
+        }
+
+        return string.Empty;
     }
-    catch (OperationCanceledException)
-    {
-        Log.Warning("Operation canceled");
-    }
-    catch (Exception ex)
-    {
-        Log.Error($"Error: {ex.Message}");
-    }
-    finally
-    {
-        if (File.Exists(tempZipPath))
-            File.Delete(tempZipPath);
-    }
-    return null;
-}
 
     /// <summary>
     /// Automatically commits and pushes files to the GitHub repository
@@ -117,12 +136,11 @@ public static partial class GitService
     /// <param name="commitMessage">Message used to auto commit</param>
     /// <param name="personalAccessToken">Access token of the user</param>
     /// <returns></returns>
-    public static async Task<bool> CommitAndPushFile(string[] relativeFilePaths, string commitMessage,
-        string personalAccessToken)
+    public static async Task<bool> CommitAndPushFile(string[] relativeFilePaths, string commitMessage, string personalAccessToken)
     {
-        if (!Directory.Exists(TempRepoPath) || !Repository.IsValid(TempRepoPath))
+        if (!Validator.DirectoryExists(GetTempRepoPath()) || !Repository.IsValid(GetTempRepoPath()))
         {
-            Log.Error($"Error: {TempRepoPath} is not a valid Git repository.");
+            Log.Error($"Error: {GetTempRepoPath()} is not a valid Git repository.");
             return false;
         }
 
@@ -130,13 +148,13 @@ public static partial class GitService
         {
             try
             {
-                using var repo = new Repository(TempRepoPath);
+                using var repo = new Repository(GetTempRepoPath());
 
                 var hasChanges = false;
 
                 foreach (var path in relativeFilePaths)
                 {
-                    var fullFilePath = Path.Combine(TempRepoPath, path);
+                    var fullFilePath = Path.Combine(GetTempRepoPath(), path);
 
                     if (!File.Exists(fullFilePath))
                     {
@@ -193,33 +211,36 @@ public static partial class GitService
     /// <summary>
     /// Deletes the temporary repository folder to prevent clutter
     /// </summary>
-    /// <param name="folderPath">Path to delete</param>
-    public static async Task DeleteTempRepo(string? folderPath)
+    public static async Task DeleteTempRepo(bool silent = false)
     {
-        Log.Information($"Deleting temporary repository folder: {folderPath}");
+        if(silent) Log.Debug($"Deleting temporary repository folder: {GetTempPath()}");
+        else Log.Information($"Deleting temporary repository folder: {GetTempPath()}");
 
-        if (!Directory.Exists(folderPath))
+        if (!Validator.DirectoryExists(GetTempPath()))
         {
-            Log.Warning($"Temp repo does not exist");
+            if(silent) Log.Debug($"Temp repo does not exist");
+            else Log.Warning($"Temp repo does not exist");
             return;
         }
         
         Log.Debug("Removing read-only attribute");
-        new DirectoryInfo(TempRepoPath).Attributes &= ~FileAttributes.ReadOnly;
+        new DirectoryInfo(GetTempPath()).Attributes &= ~FileAttributes.ReadOnly;
 
         try
         {
             await Task.Run(() =>
             {
-                foreach (var file in new DirectoryInfo(folderPath).GetFiles("*", SearchOption.AllDirectories))
+                foreach (var file in new DirectoryInfo(GetTempPath()).GetFiles("*", SearchOption.AllDirectories))
                     file.Attributes &= ~FileAttributes.ReadOnly;
 
-                Directory.Delete(folderPath, true);
-                Log.Information($"Successfully deleted temporary repository folder");
+                Directory.Delete(GetTempPath(), true);
+                if(silent) Log.Debug($"Successfully deleted temporary repository folder");
+                else Log.Information($"Successfully deleted temporary repository folder");
             });
         }
         catch (Exception ex)
         {
+            if(silent) Log.Debug($"Failed to delete temporary repository folder: {ex.Message}");
             Log.Error($"Failed to delete temporary repository folder: {ex.Message}");
         }
     }
@@ -227,16 +248,17 @@ public static partial class GitService
     /// <summary>
     /// Checks if the provided URL is a valid GitHub repository
     /// </summary>
-    public static async Task<bool> IsValidGitHubRepoAsync(string url)
+    public static async Task<bool> IsValidGitHubRepoAsync(string url, bool silent = false)
     {
-        Log.Information($"Validating GitHub repository: {url}");
+        if(silent) Log.Debug($"Validating GitHub repository: {url}");
+        else Log.Information($"Validating GitHub repository: {url}");
 
         try
         {
             var match = GitHubRepo().Match(url);
             if (!match.Success)
             {
-                Log.Debug($"GitHub url {url} did not match pattern");
+                Log.Debug($"GitHub url '{url}' did not match pattern");
                 return false;
             }
 
@@ -258,6 +280,9 @@ public static partial class GitService
             return false;
         }
     }
+    
+    public static string GetTempRepoPath() => TempRepoPath;
+    public static string GetTempPath() => TempRepoPath;
 
     [GeneratedRegex(@"^https:\/\/github\.com\/([^\/]+)\/([^\/]+)?$")]
     private static partial Regex GitHubRepo();

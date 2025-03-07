@@ -47,7 +47,7 @@ public class App : Application
                 .MinimumLevel.Debug()
                 .WriteTo.File(new LogLevelTextFormatter(),
                     Path.Combine(AppDataPath, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log"))
-                .WriteTo.Sink(new AvaloniaLogSink(LogEntries, new LogLevelTextFormatter()))
+                .WriteTo.Sink(new LogSink(LogEntries, new LogLevelTextFormatter()))
                 .CreateLogger();
 
             try
