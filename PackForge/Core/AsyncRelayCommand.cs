@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using PackForge.Logging;
 using Serilog;
 
 namespace PackForge.Core;
@@ -20,10 +19,11 @@ public class AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null
         try
         {
             await _execute();
+            await Task.Yield();
         }
         catch (Exception ex)
         {
-            Log.Fatal($"AsyncRelayCommand experienced a fatal Error. This should never happen! Report to the author: {ex}");
+            Log.Fatal($"AsyncRelayCommand experienced a fatal Error. Report this to the Author: {ex}");
         }
     }
 

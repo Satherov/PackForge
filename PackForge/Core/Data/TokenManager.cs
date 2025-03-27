@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -26,8 +27,7 @@ internal static class TokenManager
     {
         IsWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         
-        // If we're not on Windows, we need to create a data
-        // protector since Windows DPAPI isn't available there
+        // If we're not on Windows, we need to create a data protector
         if (!IsWindows)
         {
             var provider = DataProtectionProvider.Create("TokenManager");
@@ -47,19 +47,20 @@ internal static class TokenManager
     {
         try
         {
-            Log.Debug($"Retrieving {tokenName} token");
+            var stopwatch = Stopwatch.StartNew();
+            Log.Debug($"Retrieving token '{tokenName}'");
             
-            // Check if the token is stored in memory
-            if (TokenStore.TryGetValue(tokenName, out var encryptedToken))
-                return DecryptToken(encryptedToken);
-
-            // Otherwise, try reading it from disk
             var filePath = GetTokenFilePath(tokenName);
-            if(!Validator.FileExists(filePath, logLevel: "debug")) return string.Empty;
+            var memoryTask = Task.Run(() => TokenStore.TryGetValue(tokenName, out var encryptedToken) ? DecryptToken(encryptedToken) : string.Empty);
+            var diskTask = File.ReadAllTextAsync(filePath);
+
+            await Task.WhenAll(memoryTask, diskTask);
+
+            var token = memoryTask.Result;
             
-            encryptedToken = await File.ReadAllTextAsync(filePath);
-            TokenStore[tokenName] = encryptedToken;
-            return DecryptToken(encryptedToken);
+            stopwatch.Stop();
+            Log.Debug($"Token retrieval completed in {stopwatch.ElapsedMilliseconds}ms");
+            return token;
         }
         catch (Exception e)
         {
@@ -77,7 +78,7 @@ internal static class TokenManager
     /// <param name="token">Value of the Token</param>
     public static async Task StoreTokenAsync(string tokenName, string? token)
     {
-        if (Validator.FileExists(GetTokenFilePath(tokenName))) File.Delete(GetTokenFilePath(tokenName));
+        if (Validator.FileExists(GetTokenFilePath(tokenName), logLevel:"debug")) File.Delete(GetTokenFilePath(tokenName));
         
         Log.Debug($"Storing {tokenName} token");
 
@@ -87,7 +88,7 @@ internal static class TokenManager
 
         // Write the encrypted token to disk
         var filePath = GetTokenFilePath(tokenName);
-        if(Validator.FileExists(filePath)) File.Delete(filePath);
+        if(Validator.FileExists(filePath, logLevel:"debug")) File.Delete(filePath);
         try
         {
             await File.WriteAllTextAsync(filePath, encryptedToken);
@@ -135,7 +136,7 @@ internal static class TokenManager
     /// <returns></returns>
     private static string DecryptToken(string encryptedToken)
     {
-        Log.Information($"Decrypting token");
+        Log.Debug($"Decrypting token");
 
         try
         {
@@ -148,7 +149,7 @@ internal static class TokenManager
 #pragma warning disable CA1416
             var decryptedBytes = Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
 #pragma warning restore CA1416
-            Log.Information($"Token decrypted successfully");
+            Log.Debug($"Token decrypted successfully");
             return Encoding.UTF8.GetString(decryptedBytes);
         }
         catch (Exception e)
@@ -165,6 +166,7 @@ internal static class TokenManager
     /// <returns></returns>
     private static string GetTokenFilePath(string tokenName)
     {
-        return Path.Combine(TokensDirectory, $"{tokenName}.token");
+        var path = Path.Combine(TokensDirectory, $"{tokenName}.token");
+        return Validator.FileExists(path) ? path : string.Empty;
     }
 }

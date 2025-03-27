@@ -31,6 +31,7 @@
         <PackageReference Include="Serilog" Version="4.2.0"/>
         <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0"/>
         <PackageReference Include="Serilog.Sinks.File" Version="6.0.0"/>
+        <PackageReference Include="Squid-Box.SevenZipSharp" Version="1.6.2.24" />
         <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.1"/>
         <PackageReference Include="Tomlyn" Version="0.18.0"/>
     </ItemGroup>
@@ -44,5 +45,18 @@
           <DependentUpon>OverrideWindow.axaml</DependentUpon>
           <SubType>Code</SubType>
         </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="Libs\7z.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <UpToDateCheckInput Remove="Assets\templates\README.md" />
+      <UpToDateCheckInput Remove="Assets\templates\startserver.bat" />
+      <UpToDateCheckInput Remove="Assets\templates\startserver.sh" />
+      <UpToDateCheckInput Remove="Assets\templates\user_jvm_args.txt" />
     </ItemGroup>
 </Project>

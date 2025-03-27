@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -22,9 +21,13 @@ namespace PackForge.ViewModels;
 
 public class MainWindowViewModel : ReactiveObject
 {
-    
-    private readonly Task _silentCloneTask;
-    private readonly CancellationTokenSource _cts = new();
+    private static Task silentTask;
+    private static CancellationTokenSource _cts = new();
+
+    private static readonly string TemplateFolderPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "PackForge", "templates"
+    );
 
     // File Paths
     private string? _sourceFolderPath;
@@ -193,8 +196,7 @@ public class MainWindowViewModel : ReactiveObject
 
             foreach (var entry in _logEntries)
             {
-                if (!ShowDebugLogs && entry.Level.Equals("DEBUG", StringComparison.InvariantCultureIgnoreCase))
-                    continue;
+                if (!ShowDebugLogs && entry.Level.Equals("DEBUG", StringComparison.InvariantCultureIgnoreCase)) continue;
                 _filteredLogEntries.Add(entry);
             }
 
@@ -232,7 +234,7 @@ public class MainWindowViewModel : ReactiveObject
         _logEntries.CollectionChanged += (_, _) => RebuildFilteredLogEntries();
         RebuildFilteredLogEntries();
         
-        if(!Validator.IsNullOrWhiteSpace(GitHubRepoLink, logLevel: "debug")) _silentCloneTask = GitService.SilentCloneGitHubRepo(GitHubRepoLink, _cts.Token);
+        if(!Validator.IsNullOrWhiteSpace(GitHubRepoLink, logLevel: "debug")) silentTask = GitService.SilentCloneGitHubRepo(GitHubRepoLink, _cts.Token);
         else Log.Debug("No GitHub repository link found in config, skipping silent clone");
 
         KillTasksCommand = new AsyncRelayCommand(async () => await Task.Run(CancelAllOperations));
@@ -242,13 +244,15 @@ public class MainWindowViewModel : ReactiveObject
         OpenGitHubRepoCommand = new AsyncRelayCommand(async () => await Task.Run(() => OpenGitHubRepoLink(GitHubRepoLink)));
         FetchLoaderVersionCommand = new AsyncRelayCommand(async () => await Task.Run(FetchLoaderVersionsAsync));
 
-        GenerateClientCommand = new AsyncRelayCommand(async () => await Task.Run(() => GenerateClientAsync(SourceFolderPath, DestinationFolderPath, GitHubRepoLink, _silentCloneTask)));
-        GenerateServerCommand = new AsyncRelayCommand(async () => await Task.Run(() => GenerateServerAsync(SourceFolderPath, DestinationFolderPath, GitHubRepoLink, _silentCloneTask)));
+        GenerateClientCommand = new AsyncRelayCommand(async () => await Task.Run(() => GenerateClientAsync(SourceFolderPath, DestinationFolderPath, GitHubRepoLink, silentTask, _cts.Token)));
+        GenerateServerCommand = new AsyncRelayCommand(async () => await Task.Run(() => GenerateServerAsync(SourceFolderPath, DestinationFolderPath, GitHubRepoLink, silentTask, _cts.Token)));
+        
+        GenerateChangelogCommand = new AsyncRelayCommand(async () => await Task.Run(() => GenerateChangelog(SourceFolderPath, FinalPath(DestinationFolderPath), ModpackVersion, _cts.Token)));
 
         OpenConfigWindowCommand = new AsyncRelayCommand(async () => await Task.Run(() => WindowHelper.ShowWindow(() => WindowHelper.ConfigWindow)));
         OpenTokenWindowCommand = new AsyncRelayCommand(async () => await Task.Run(() => WindowHelper.ShowWindow(() => WindowHelper.TokenWindow)));
         OpenOverwriteWindowCommand = new AsyncRelayCommand(async () => await Task.Run(() => WindowHelper.ShowWindow(() => WindowHelper.OverwriteWindow)));
-        OpenTemplateFolderCommand = new AsyncRelayCommand(async () => await Task.Run(() => Process.Start(new ProcessStartInfo { FileName = TemplateBuilder.TemplateFolderPath, UseShellExecute = true })));
+        OpenTemplateFolderCommand = new AsyncRelayCommand(async () => await Task.Run(() => Process.Start(new ProcessStartInfo { FileName = TemplateFolderPath, UseShellExecute = true })));
     }
 
     private void LoadData()
@@ -262,7 +266,7 @@ public class MainWindowViewModel : ReactiveObject
         MinecraftVersion = DataManager.GetConfigValue(() => DataManager.MinecraftVersion);
         LoaderType = DataManager.GetConfigValue(() => DataManager.LoaderType);
         LoaderVersion = DataManager.GetConfigValue(() => DataManager.LoaderVersion);
-        LoaderVersionOptions = Validator.IsNullOrWhiteSpace(LoaderVersion, logLevel: "none") ? new ObservableCollection<string>([LoaderVersion!]) : [];
+        LoaderVersionOptions = !Validator.IsNullOrWhiteSpace(LoaderVersion, logLevel: "none") ? new ObservableCollection<string>([LoaderVersion!]) : [];
 
         ModpackName = DataManager.GetConfigValue(() => DataManager.ModpackName);
         ModpackVersion = DataManager.GetConfigValue(() => DataManager.ModpackVersion);
@@ -292,10 +296,11 @@ public class MainWindowViewModel : ReactiveObject
         DataManager.SaveConfig();
     }
 
-    private void CancelAllOperations()
+    private static void CancelAllOperations()
     {
         Log.Warning("User requested cancellation");
         _cts.Cancel();
+        _cts = new CancellationTokenSource();
     }
     
     /// <summary>
@@ -376,8 +381,22 @@ public class MainWindowViewModel : ReactiveObject
         }
     }
 
-    private async Task GenerateClientAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask = null)
+    private static async Task GenerateChangelog(string? sourceFolder, string? destinationFolder, string? version, CancellationToken ct)
     {
+        if(Validator.IsNullOrWhiteSpace(sourceFolder) ||
+           Validator.IsNullOrWhiteSpace(destinationFolder)) return;
+        
+        version ??= "0.0.0";
+        
+        var export = Path.Join(sourceFolder, "local", "kubejs", "export");
+        await ChangelogBuilder.GenerateChangelogAsync(export, destinationFolder!, version, ct);
+    }
+
+    private async Task GenerateClientAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        Log.Information($"Generating client files for {sourceFolder} to {destinationFolder}");
+        
         if(Validator.IsNullOrWhiteSpace(sourceFolder) ||
            Validator.IsNullOrWhiteSpace(destinationFolder) ||
            Validator.IsNullOrWhiteSpace(gitHubRepoLink)) return;
@@ -388,26 +407,29 @@ public class MainWindowViewModel : ReactiveObject
 
         try
         {
-            Log.Information($"Generating client files for {sourceFolder} to {destinationFolder}");
-
-            var root = await FileHelper.PrepareRootFolderAsync(destinationFolder, ModpackName, ModpackVersion);
+            var root = FileHelper.PrepareRootFolderAsync(destinationFolder, ModpackName, ModpackVersion);
             var targetDir = FileHelper.PrepareFolder(root,  $"{ModpackName}-ClientExport");
-            await GenerateRepo(GitHubRepoLink, silentCloneTask, _cts.Token);
-            
-            await GenerateRepo(GitHubRepoLink, silentCloneTask, _cts.Token);
+            await GenerateRepo(GitHubRepoLink, silentCloneTask, ct);
             
             if (Validator.DirectoryExists(GitService.GetTempRepoPath()))
             {
-                await FileHelper.CopyMatchingFilesAsync(GitService.GetTempRepoPath(), targetDir, repoRules, _cts.Token);
-                await FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, localRules, _cts.Token);
                 
-                if(!Validator.IsNullOrWhiteSpace(DataManager.ClientOverwritePath, logLevel: "debug", variableName:"Client Overwrite")) await FileHelper.CopyMatchingFilesAsync(sourceFolder!, DataManager.ClientOverwritePath, repoRules, _cts.Token);
+                var copyRepoTask = FileHelper.CopyMatchingFilesAsync(GitService.GetTempRepoPath(), targetDir, repoRules, ct);
+                var copyFolderTask =  FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, localRules, ct);
+                var overwriteTask = Task.Delay(0, ct);
+                
+                if(Validator.DirectoryExists(DataManager.ClientOverwritePath, logLevel: "debug", variableName:"ClientOverwritePath"))
+                { 
+                    overwriteTask = FileHelper.CopyMatchingFilesAsync(GitService.GetTempRepoPath(), DataManager.ClientOverwritePath, repoRules, ct);
+                }
+                
+                await Task.WhenAll(copyRepoTask, copyFolderTask, overwriteTask);
             }
             else
             {
                 Log.Warning($"Invalid Repo target, falling back to local files");
                 Log.Warning($"These files may not be up to date!");
-                await FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, baseRules, _cts.Token);
+                await FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, baseRules, ct);
             }
             
             await JsonBuilder.GenerateManifest(
@@ -417,15 +439,13 @@ public class MainWindowViewModel : ReactiveObject
                 packAuthor: ModPackAuthor!, 
                 packName: ModpackName!, 
                 loaderType: LoaderType!, 
-                loaderVersion: LoaderVersion!);
+                loaderVersion: LoaderVersion!, ct: ct);
 
-            await FileHelper.CleanUpEmptyFolders(targetDir);
+            FileHelper.CleanUpEmptyFolders(targetDir);
             
             Log.Information("Zipping client files");
             
-            var zipPath = Path.Combine(Path.Join(destinationFolder, ModpackName), $"{ModpackVersion ??= "0.0.0"}", $"{ModpackName ??= "Unknown"}-{ModpackVersion ??= "0.0.0"}.zip");
-            if (File.Exists(zipPath)) File.Delete(zipPath);
-            await Task.Run(() => ZipFile.CreateFromDirectory(targetDir, zipPath), _cts.Token);
+            await FileHelper.ZipDir(targetDir, Path.Combine(FinalPath(destinationFolder), $"{ModpackName ??= "Unknown"}-{ModpackVersion ??= "0.0.0"}.zip"), ct);
             
             Log.Information($"Successfully generated client files");
         }
@@ -433,10 +453,16 @@ public class MainWindowViewModel : ReactiveObject
         {
             Log.Warning("Generate client files operation was killed by the user");
         }
+        
+        stopwatch.Stop();
+        Log.Information($"Client files generation took {stopwatch.ElapsedMilliseconds}ms");
     }
     
-    private async Task GenerateServerAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask = null)
+    private async Task GenerateServerAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, CancellationToken ct)
     {
+        var stopwatch = Stopwatch.StartNew();
+        Log.Information($"Generating server files for {sourceFolder} to {destinationFolder}");
+        
         if(Validator.IsNullOrWhiteSpace(sourceFolder) ||
            Validator.IsNullOrWhiteSpace(destinationFolder) ||
            Validator.IsNullOrWhiteSpace(gitHubRepoLink)) return;
@@ -447,34 +473,48 @@ public class MainWindowViewModel : ReactiveObject
 
         try
         {
-            Log.Information($"Generating server files for {sourceFolder} to {destinationFolder}");
-
-            var root = await FileHelper.PrepareRootFolderAsync(destinationFolder, ModpackName, ModpackVersion);
+            var root = FileHelper.PrepareRootFolderAsync(destinationFolder, ModpackName, ModpackVersion);
             var targetDir = FileHelper.PrepareFolder(root,  $"{ModpackName}-ServerExport");
-            await GenerateRepo(GitHubRepoLink, silentCloneTask, _cts.Token);
+            await GenerateRepo(GitHubRepoLink, silentCloneTask, ct);
             
             if (Validator.DirectoryExists(GitService.GetTempRepoPath()))
             {
-                await FileHelper.CopyMatchingFilesAsync(GitService.GetTempRepoPath(), targetDir, repoRules, _cts.Token);
-                await FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, localRules, _cts.Token);
+                var copyRepoTask = FileHelper.CopyMatchingFilesAsync(GitService.GetTempRepoPath(), targetDir, repoRules, ct);
+                var copyFolderTask =  FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, localRules, ct);
+                var overwriteTask = Task.Delay(0, ct);
                 
-                if(!Validator.IsNullOrWhiteSpace(DataManager.ServerOverwritePath, logLevel: "debug", variableName:"Server Overwrite")) await FileHelper.CopyMatchingFilesAsync(sourceFolder!, DataManager.ServerOverwritePath, repoRules, _cts.Token);
+                await Task.WhenAll(copyRepoTask, copyFolderTask);
+                
+                if(Validator.DirectoryExists(DataManager.ServerOverwritePath, logLevel: "debug", variableName:"ServerOverwritePath"))
+                { 
+                    overwriteTask = FileHelper.CopyMatchingFilesAsync(GitService.GetTempRepoPath(), DataManager.ServerOverwritePath, repoRules, ct);
+                }
+                
+                await Task.WhenAll(copyRepoTask, copyFolderTask, overwriteTask);
             }
             else
             {
                 Log.Warning($"Invalid Repo target, falling back to local files");
                 Log.Warning($"These files may not be up to date!");
-                await FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, baseRules, _cts.Token);
+                await FileHelper.CopyMatchingFilesAsync(sourceFolder!, targetDir, baseRules, ct);
             }
             
             Log.Debug("Attempting modloader installer download from maven");
             await MavenService.DownloadLoader(LoaderType, LoaderVersion, targetDir);
             
-            // Log.Information("Zipping server files");
-            //
-            // var zipPath = Path.Combine(Path.Join(destinationFolder, ModpackName), $"{ModpackVersion ??= "0.0.0"}", $"{ModpackName ??= "Unknown"}-{ModpackVersion ??= "0.0.0"}.zip");
-            // if (File.Exists(zipPath)) File.Delete(zipPath);
-            // await Task.Run(() => ZipFile.CreateFromDirectory(targetDir, zipPath), _cts.Token);
+            if(Validator.DirectoryExists(TemplateFolderPath) && Directory.GetFiles(TemplateFolderPath).Length > 0)
+            {
+                var templateRules = new Dictionary<string, (FileAttributes, List<string>, bool)> 
+                {
+                    { "README.md", (FileAttributes.Normal, [], false) },
+                };
+
+                await FileHelper.CopyMatchingFilesAsync(TemplateFolderPath, targetDir, templateRules, ct);
+            }
+            
+            Log.Information("Zipping server files");
+       
+            await FileHelper.ZipDir(targetDir, Path.Combine(FinalPath(destinationFolder), $"ServerFiles-{ModpackVersion ??= "0.0.0"}.zip"), ct);
             
             Log.Information($"Successfully generated server files");
         }
@@ -482,6 +522,9 @@ public class MainWindowViewModel : ReactiveObject
         {
             Log.Warning("Generate server files operation was killed by the user");
         }
+        
+        stopwatch.Stop();
+        Log.Information($"Server files generation took {stopwatch.ElapsedMilliseconds}ms");
     }
 
     private static async Task GenerateRepo(string? gitHubRepoLink, Task? silentCloneTask, CancellationToken cts)
@@ -500,32 +543,33 @@ public class MainWindowViewModel : ReactiveObject
         }
     }
 
-    public enum FileSystemType
+    private string FinalPath(string? destinationPath)
     {
-        Directory,
-        File
+        return !Validator.DirectoryExists(destinationPath) ? string.Empty : 
+            Path.Combine(Path.Join(destinationPath, ModpackName), $"{ModpackVersion ??= "0.0.0"}");
     }
     
-    private static Dictionary<string, (FileSystemType, (List<string>, bool))> CreateRules(bool hasGitHub = false, bool isRepo = false, bool isClient = true, List<string>? excludedMods = null)
+    private static Dictionary<string, (FileAttributes, List<string>, bool)> CreateRules(bool hasGitHub = false, bool isRepo = false, bool isClient = true, List<string>? excludedMods = null)
     {
         excludedMods ??= [];
+        var assets = isClient ? [] : new List<string> { "assets" };
         
-        var rules = new Dictionary<string, (FileSystemType, (List<string>, bool))>
+        var rules = new Dictionary<string, (FileAttributes, List<string>, bool)>
         {
-            { "config", (FileSystemType.Directory, ([], false)) },
-            { "defaultconfigs", (FileSystemType.Directory, ([], false)) },
-            { "kubejs", (FileSystemType.Directory, ([], false)) },
-            { "packmenu", (FileSystemType.Directory, ([], false)) }
+            { "config", (FileAttributes.Directory, [], true) },
+            { "defaultconfigs", (FileAttributes.Directory, [], true) },
+            { "kubejs", (FileAttributes.Directory, assets, true) },
+            { "packmenu", (FileAttributes.Directory, [], true) }
         };
-        var localServerRules = new Dictionary<string, (FileSystemType, (List<string>, bool))> 
+        var localServerRules = new Dictionary<string, (FileAttributes, List<string>, bool)> 
         {
-            { "mods", (FileSystemType.Directory,(excludedMods, false)) },
+            { "mods", (FileAttributes.Directory, excludedMods, true) },
         };
-        var localClientRules = new Dictionary<string, (FileSystemType, (List<string>, bool))> 
+        var localClientRules = new Dictionary<string, (FileAttributes, List<string>, bool)> 
         {
-            { "shaderpacks", (FileSystemType.Directory, ([], false))},
-            { "resourcepacks", (FileSystemType.Directory, ([], false)) },
-            { "minecraftinstance.json", (FileSystemType.File, ([], false)) },
+            { "shaderpacks", (FileAttributes.Directory, [], true)},
+            { "resourcepacks", (FileAttributes.Directory, [], true) },
+            { "minecraftinstance.json", (FileAttributes.Normal, [], true) },
         };
         
         if (isClient)

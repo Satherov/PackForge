@@ -101,17 +101,11 @@ public static class CurseService
     {
         var folderFileNames = new ConcurrentBag<string>();
 
-        var tasks = folders
-            .Where(Directory.Exists)
-            .Select(folder => Task.Run(() =>
-            {
-                foreach (var file in Directory.GetFiles(folder))
-                {
-                    folderFileNames.Add(Path.GetFileName(file));
-                }
-            }, ct)).ToArray();
-
-        await Task.WhenAll(tasks);
+        await Parallel.ForEachAsync(folders.Where(Directory.Exists), ct, (folder, token) =>
+        {
+            foreach (var file in Directory.GetFiles(folder)) folderFileNames.Add(Path.GetFileName(file));
+            return ValueTask.CompletedTask;
+        });
 
         var hashSet = new HashSet<string>(folderFileNames, StringComparer.OrdinalIgnoreCase);
         var match = files.FirstOrDefault(f => hashSet.Contains(Path.GetFileName(f.FileName)));

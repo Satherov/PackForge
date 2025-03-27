@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using PackForge.Core.Helpers;
 using Serilog;
+using static System.String;
 
 namespace PackForge.Core.Service;
 
@@ -36,14 +37,20 @@ public static partial class MavenService
 
             if (loaderType.Equals("NeoForge"))
             {
+                Log.Debug($"mcVersion: {mcVersion}");
+                
                 var versionParts = mcVersion.Split('.');
                 mcVersion = versionParts.Length switch
                 {
-                    1 => $"{mcVersion}.0.0",
-                    2 => $"{mcVersion}.0",
-                    _ => mcVersion
+                    // versionParts[0] = 1
+                    // versionParts[1] = Major
+                    // versionParts[2] = Minor
+                    2 => $"{versionParts[1]}.0", // 1.20 -> 20.0
+                    3 => $"{versionParts[1]}.{versionParts[2]}", // 1.20.2 -> 20.2
+                    _ => $"{versionParts[1]}.0"
                 };
-                mcVersion = mcVersion.Split('.')[1];
+                
+                Log.Debug($"mcVersion: {mcVersion}");
             }
 
             var expectedPrefix = loaderType switch
@@ -52,6 +59,8 @@ public static partial class MavenService
                 "Forge" => $"{mcVersion}-",
                 _ => ""
             };
+            
+            Log.Debug($"Expected prefix: {expectedPrefix}");
             
             var filteredVersions = versionMatches.Where(v => v.StartsWith(expectedPrefix)).ToList();
 
@@ -75,7 +84,7 @@ public static partial class MavenService
            Validator.IsNullOrWhiteSpace(loaderVersion) ||
            !Validator.DirectoryExists(savePath)) return;
         
-        var loader = string.Join("-", loaderType!, loaderVersion);
+        var loader = Join("-", loaderType!, loaderVersion);
         
         Log.Information($"Downloading {loader} to {savePath}");
 
@@ -95,7 +104,6 @@ public static partial class MavenService
 
         try
         {
-            Log.Information($"Downloading {loader}");
             var fileBytes = await HttpClient.GetByteArrayAsync(installerUrl);
             await File.WriteAllBytesAsync(destinationFile, fileBytes);
 

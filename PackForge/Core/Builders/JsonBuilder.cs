@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,8 @@ public abstract class JsonBuilder
         string loaderVersion = "0.0.0",
         CancellationToken ct = default)
     {
+        var stopwatch = Stopwatch.StartNew();
+        Log.Information($"Generating manifest");
         
         if(!Validator.DirectoryExists(path)) return;
 
@@ -57,11 +60,14 @@ public abstract class JsonBuilder
         };
         
         await File.WriteAllTextAsync(Path.Combine(path, "manifest.json"), manifest.ToString(), ct);
+        
+        stopwatch.Stop();
+        Log.Information($"Manifest generation took {stopwatch.ElapsedMilliseconds}ms");
     }
 
     private static async Task<JArray> ProcessMinecraftInstanceAsync(string pathToJson, string path, CancellationToken ct)
     {
-        Log.Debug($"Processing minecraft instance file {pathToJson}");
+        Log.Information($"Processing minecraft instance file {pathToJson}");
         
         var modsFolder = Path.Combine(path, "mods");
         if (!Validator.DirectoryExists(modsFolder)) return [];
@@ -74,15 +80,15 @@ public abstract class JsonBuilder
         
         var jsonContent = await File.ReadAllTextAsync(pathToJson, ct);
         var root = JObject.Parse(jsonContent);
-        // Deep clone to not modify the original
+        
         var installedAddons = (JArray)root["installedAddons"]!.DeepClone();
         var matchedEntries = new JArray();
         
         foreach (var folder in new[] { modsFolder, shaderpacksFolder, resourcepacksFolder }.Where(value => !string.IsNullOrEmpty(value)))
         {
-            if (!string.IsNullOrEmpty(folder))
+            if (Validator.DirectoryExists(folder, logLevel: "debug"))
             {
-                foreach (var addon in await ProcessFolderAsync(folder, installedAddons, ct))
+                foreach (var addon in ProcessFolderAsync(folder, installedAddons, ct))
                 {
                     matchedEntries.Add(addon);
                 }
@@ -92,21 +98,26 @@ public abstract class JsonBuilder
                 Log.Debug($"{Path.GetFileName(folder)} folder doesnt exist");
             }
 
-            if (installedAddons.Count <= 0) continue;
+            if (installedAddons.Count <= 0)
+            {
+                Log.Debug("All entries matched");
+                break;
+            }
+            
             Log.Debug("Unmatched entries:");
             foreach (var leftover in installedAddons)
             {
                 Log.Debug($"fileName: {leftover["installedFile"]?["fileName"]}, addonID: {leftover["addonID"]}, fileID: {leftover["installedFile"]?["id"]}");
             }
         }
-        
+            
         File.Delete(pathToJson);
         return matchedEntries;
     }
     
-    private static async Task<JArray> ProcessFolderAsync(string folderPath, JArray installedAddons, CancellationToken ct)
+    private static  JArray ProcessFolderAsync(string folderPath, JArray installedAddons, CancellationToken ct)
     {
-        Log.Debug($"Checking {Path.GetFileName(folderPath)}");
+        Log.Debug($"Checking {folderPath}");
         
         var matchedEntries = new JArray();
         var enumerateFiles = Directory.EnumerateFiles(folderPath).ToList();
@@ -123,9 +134,7 @@ public abstract class JsonBuilder
             
             var fileName = Path.GetFileName(filePath);
 
-            var match = await Task.Run(
-                () => installedAddons.FirstOrDefault(x => (string)x["installedFile"]!["fileName"]! == fileName), ct);
-
+            var match = installedAddons.FirstOrDefault(x => (string)x["installedFile"]?["fileName"]! == fileName);
             if (match == null) continue;
             matchedEntries.Add(new JObject
             {
@@ -133,10 +142,11 @@ public abstract class JsonBuilder
                 ["fileID"] = match["installedFile"]?["id"],
                 ["required"] = true
             });
-                
+
             Log.Debug($"Match found for {fileName}: addonID: {match["addonID"]}, fileID: {match["installedFile"]?["id"]}");
-            await Task.Run(() => installedAddons.Remove(match), ct);
-            await Task.Run(() => File.Delete(filePath), ct);
+            installedAddons.Remove(match);
+            File.Delete(filePath);
+
         }
 
         return matchedEntries;

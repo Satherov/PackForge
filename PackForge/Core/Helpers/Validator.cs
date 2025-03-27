@@ -11,6 +11,19 @@ public static class Validator
     /// <param name="logLevel">Optional: The level at which to display the log entry. Default: Warning</param>
     /// <param name="variableName">Optional: Variable name to display in the log. Default: Literal name of 'value'</param>
     /// <returns>Does the directory exist?</returns>
+    public static bool DirectoryEmpty(string? value, string? path = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
+    {
+        if (IsNullOrWhiteSpace(value, logLevel: "none")) return true;
+        if (Directory.GetFileSystemEntries(value!).Length > 0) return false;
+        HandleLogLevel($"{Path.GetFileName(value) ?? GetVariableName(variableName)} not found" + (string.IsNullOrWhiteSpace(path) ? "" : $" at {path}"), logLevel);
+        return true;
+    }
+    
+    /// <param name="value">Value to check</param>
+    /// <param name="path">Optional: Additional path to display in the log</param>
+    /// <param name="logLevel">Optional: The level at which to display the log entry. Default: Warning</param>
+    /// <param name="variableName">Optional: Variable name to display in the log. Default: Literal name of 'value'</param>
+    /// <returns>Does the directory exist?</returns>
     public static bool DirectoryExists(string? value, string? path = null, string logLevel = "warning", [CallerArgumentExpression("value")] string variableName = "")
     {
         if (Directory.Exists(value)) return true;

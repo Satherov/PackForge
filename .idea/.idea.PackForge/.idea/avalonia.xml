@@ -6,6 +6,8 @@
         <entry key="PackForge/App.axaml" value="PackForge/PackForge.csproj" />
         <entry key="PackForge/Windows/ConfigWindow.axaml" value="PackForge/PackForge.csproj" />
         <entry key="PackForge/Windows/MainWindow.axaml" value="PackForge/PackForge.csproj" />
+        <entry key="PackForge/Windows/OverrideWindow.axaml" value="PackForge/PackForge.csproj" />
+        <entry key="PackForge/Windows/OverwriteWindow.axaml" value="PackForge/PackForge.csproj" />
         <entry key="PackForge/Windows/TokenWindow.axaml" value="PackForge/PackForge.csproj" />
       </map>
     </option>

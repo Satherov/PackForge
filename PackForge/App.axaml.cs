@@ -45,8 +45,7 @@ public class App : Application
         {
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.File(new LogLevelTextFormatter(),
-                    Path.Combine(AppDataPath, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log"))
+                .WriteTo.File(new LogLevelTextFormatter(), Path.Combine(AppDataPath, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log"))
                 .WriteTo.Sink(new LogSink(LogEntries, new LogLevelTextFormatter()))
                 .CreateLogger();
 

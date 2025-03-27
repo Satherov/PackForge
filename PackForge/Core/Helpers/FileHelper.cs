@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -11,9 +13,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
-using PackForge.ViewModels;
-using static PackForge.ViewModels.MainWindowViewModel;
 using Serilog;
+using SevenZip;
+using CompressionLevel = System.IO.Compression.CompressionLevel;
+
 
 namespace PackForge.Core.Helpers;
 
@@ -26,7 +29,7 @@ public static class FileHelper
     /// <param name="folderName">Name of the created root</param>
     /// <param name="version">Used in the folder structure</param>
     /// <returns>Location of the folder created</returns>
-    public static async Task<string> PrepareRootFolderAsync(string? destinationFolder, string? folderName, string? version)
+    public static string PrepareRootFolderAsync(string? destinationFolder, string? folderName, string? version)
     {
         Log.Information("Generating root folder");
         if(Validator.IsNullOrWhiteSpace(destinationFolder) ||
@@ -41,39 +44,11 @@ public static class FileHelper
             {
                 Log.Debug("Root already exists");
                 return rootFolder;
-            };
+            }
             
             Log.Debug("Creating new root folder");
             Directory.CreateDirectory(rootFolder);
-            var directoryInfo = new DirectoryInfo(rootFolder);
-            // Remove possible read-only flag
-            Log.Debug("Removing read-only flag");
-            directoryInfo.Attributes &= ~FileAttributes.ReadOnly;
-
-            await Task.Run(async () =>
-            {
-                Log.Debug("Setting full control for current user");
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    // Set full control for the current user on Windows
-                    Log.Debug("Running on Windows");
-                    var security = directoryInfo.GetAccessControl();
-                    security.AddAccessRule(new FileSystemAccessRule(
-                        WindowsIdentity.GetCurrent().Name,
-                        FileSystemRights.FullControl,
-                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                        PropagationFlags.None,
-                        AccessControlType.Allow
-                    ));
-                    directoryInfo.SetAccessControl(security);
-                }
-                else
-                {
-                    // Set full control for all users on non-Windows platforms
-                    Log.Debug("Running on non-Windows");
-                    await Task.Run(() => System.Diagnostics.Process.Start("chmod", $"777 \"{rootFolder}\""));
-                }
-            });
+            CleanPermissions(rootFolder);
 
             return rootFolder;
         }
@@ -84,6 +59,12 @@ public static class FileHelper
         }
     }
 
+    /// <summary>
+    /// Prepares a folder
+    /// </summary>
+    /// <param name="destinationFolder">Path the folder is supposed to end up at</param>
+    /// <param name="folderName">Name of the folder</param>
+    /// <returns>Location of the new folder</returns>
     public static string PrepareFolder(string? destinationFolder, string? folderName)
     {
         folderName ??= "Unknown";
@@ -95,16 +76,17 @@ public static class FileHelper
 
         try
         {
-            var targetPath = Path.Join(destinationFolder!, folderName!);
+            var targetPath = Path.Join(destinationFolder!, folderName);
             
             if (Directory.Exists(targetPath))
             {
                 Log.Debug($"{folderName} already exists");
                 Directory.Delete(targetPath, true);
-            };
-            
+            }
+
             Log.Debug($"Creating new {folderName} folder");
             Directory.CreateDirectory(targetPath);
+            CleanPermissions(targetPath);
             
             return targetPath;
         }
@@ -115,20 +97,25 @@ public static class FileHelper
         }
     }
 
-    public static async Task CleanUpEmptyFolders(string rootPath)
+    /// <summary>
+    /// Removes any empty folders in the given root
+    /// </summary>
+    /// <param name="rootPath">Root to clean</param>
+    public static void CleanUpEmptyFolders(string rootPath)
     {
         Log.Information("Cleaning up empty folders");
 
         if (!Validator.DirectoryExists(rootPath)) return;
 
         var overwritesFolder = Path.Combine(rootPath, "overwrites");
-        if (Validator.DirectoryExists(overwritesFolder))
+        if (Validator.DirectoryExists(overwritesFolder, logLevel:"debug"))
         {
             Log.Debug("Deleting existing overwrites folder");
             Directory.Delete(overwritesFolder, true);
         }
         
         Directory.CreateDirectory(overwritesFolder);
+        CleanPermissions(overwritesFolder);
 
         foreach (var subDir in Directory.GetDirectories(rootPath))
         {
@@ -141,10 +128,12 @@ public static class FileHelper
 
             var isEmpty = !Directory.EnumerateFileSystemEntries(subDir).Any();
             var destinationPath = Path.Combine(overwritesFolder, folderName);
-            if (isEmpty)
+            if (isEmpty || 
+                folderName.Contains("shaderpacks", StringComparison.OrdinalIgnoreCase) || 
+                folderName.Contains("resourcepacks", StringComparison.OrdinalIgnoreCase))
             {
                 Log.Debug($"{folderName} is empty, deleting");
-                await Task.Run(() => Directory.Delete(subDir, true));
+                Directory.Delete(subDir, true);
             }
             else
             {
@@ -154,7 +143,7 @@ public static class FileHelper
                 }
 
                 Log.Debug($"Moving {folderName}");
-                await Task.Run(() => Directory.Move(subDir, destinationPath));
+                Directory.Move(subDir, destinationPath);
             }
         }
 
@@ -177,7 +166,7 @@ public static class FileHelper
     /// <param name="focusWindow">Focuses a window after the folder picker closes</param>
     /// <returns>The folder location selected</returns>
     /// <exception cref="SystemException">If you manage to call this function while the main windows doesn't exist yet. Should never happen!</exception>
-    public static async Task<string?> OpenFolderAsync(string? startLocation = null, Window? focusWindow = null)
+    public static async Task<string?> OpenFolderAsync(string? startLocation = null,  Window? focusWindow = null)
     {
         Log.Debug("Opening folder picker dialog");
         
@@ -228,58 +217,104 @@ public static class FileHelper
     /// <param name="targetDir">The destination to copy files to</param>
     /// <param name="folderRules">Filter dictionary to use (folderName, ([files to filter], whitelist?))</param>
     /// <param name="ct">CancellationToken to stop operation if requested by the user</param>
+    /// <exception cref="ArgumentOutOfRangeException">If you somehow manage to enter a file type that doesnt exist</exception>
     public static async Task CopyMatchingFilesAsync(
         string sourceDir,
         string targetDir,
-        Dictionary<string, (FileSystemType, (List<string> files, bool isWhitelist))> folderRules,
+        Dictionary<string, (FileAttributes, List<string> files , bool isWhitelist)>? folderRules ,
         CancellationToken ct)
     {
-        if(!Validator.DirectoryExists(sourceDir)) return;
+        var stopwatch = Stopwatch.StartNew();
+        Log.Debug($"Starting file copy from {sourceDir} to {targetDir}");
         
+        if (!Validator.DirectoryExists(sourceDir)) return;
+
         Log.Debug($"Source directory: {sourceDir}");
         Log.Debug($"Target directory: {targetDir}");
-        
-        var sourceSeg = sourceDir.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
-        Log.Information($"Copying folders from {Path.Combine(sourceSeg[^2], sourceSeg[^1])} to {Path.GetFileName(targetDir)}");
 
+        // Ensure target exists.
         Directory.CreateDirectory(targetDir);
 
-        foreach (var (name, (fileType, (fileFilter, isWhitelist))) in folderRules)
+        folderRules ??= new Dictionary<string, (FileAttributes, List<string> files , bool isWhitelist)>
         {
-            ct.ThrowIfCancellationRequested();
+            { string.Empty, (FileAttributes.Normal, [], false) },
+        };
+
+        var tasks = new List<Task>();
+        var semaphore = new SemaphoreSlim(4);
+
+        await Parallel.ForEachAsync(folderRules, ct, async (rule, token) =>
+        {
+            var (name, (fileType, fileFilter, isWhitelist)) = rule;
+            token.ThrowIfCancellationRequested();
 
             var sourcePath = Path.Combine(sourceDir, name);
             var destPath = Path.Combine(targetDir, name);
-            
-            if (File.Exists(sourcePath) && fileType == FileSystemType.File)
+
+            // Use a bitwise check to see if fileType represents a directory.
+            var isDirectoryRule = (fileType & FileAttributes.Directory) != 0;
+
+            if (isWhitelist)
             {
-                Log.Debug($"Copying {name} to {Path.GetFileName(destPath)}");
-                await CopySingleFileAsync(sourcePath, targetDir, [], false, new SemaphoreSlim(4), ct);
-                Log.Debug($"Copied file {name}");
+                if (isDirectoryRule && Directory.Exists(sourcePath))
+                {
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    {
+                        Log.Debug($"Copying folder {name} using robocopy");
+                        await CopyFolderRobocopyAsync(sourcePath, destPath, fileFilter, token);
+                    }
+                    else
+                    {
+                        Log.Debug($"Copying folder {name} using recursive copy");
+                        await CopyFolderRecursiveAsync(sourcePath, destPath, fileFilter, semaphore, token);
+                    }
+                }
+                else if (File.Exists(sourcePath))
+                {
+                    Log.Debug($"Copying {name} to {Path.GetFileName(destPath)}");
+                    await CopySingleFileAsync(sourcePath, targetDir, new List<string>(), semaphore, token);
+                }
+                else
+                {
+                    Log.Warning($"{name} does not exist in {sourceDir}");
+                }
                 return;
             }
 
-            if (!Directory.Exists(sourcePath)  && fileType == FileSystemType.Directory)
+            // Note: using sourcePath instead of sourceDir here might be more appropriate.
+            var entries = Directory.GetFileSystemEntries(sourceDir);
+            var entryTasks = entries.Select(async entry =>
             {
-                Log.Warning($"{name} does not exist in {sourceDir}");
-                continue;
-            }
-            
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                // Use robocopy on Windows
-                Log.Debug($"Copying folder {name} using robocopy");
-                await CopyFolderRobocopyAsync(sourcePath, destPath, fileFilter, isWhitelist, ct);
-            }
-            else
-            {
-                // Use recursive copy on non-Windows platforms
-                Log.Debug($"Copying folder {name} using recursive copy");
-                await CopyFolderRecursiveAsync(sourcePath, destPath, fileFilter, isWhitelist, new SemaphoreSlim(4), ct);
-            }
-            
-            Log.Debug($"Copied folder {name}");
-        }
+                // Remove any entries that are in the file filter.
+                if (fileFilter.Contains(Path.GetFileName(entry))) return;
+
+                // Use bitwise check for directories.
+                if ((File.GetAttributes(entry) & FileAttributes.Directory) != 0)
+                {
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    {
+                        Log.Debug($"Copying folder {entry} using robocopy");
+                        await CopyFolderRobocopyAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)), fileFilter, token);
+                    }
+                    else
+                    {
+                        Log.Debug($"Copying folder {entry} using recursive copy");
+                        await CopyFolderRecursiveAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)), fileFilter, semaphore, token);
+                    }
+                }
+                else
+                {
+                    await CopySingleFileAsync(entry, targetDir, new List<string>(), semaphore, token);
+                }
+            });
+
+            tasks.AddRange(entryTasks);
+        });
+
+        await Task.WhenAll(tasks);
+        
+        stopwatch.Stop();
+        Log.Debug($"File copying completed in {stopwatch.ElapsedMilliseconds}ms");
     }
 
     /// <summary>
@@ -288,13 +323,11 @@ public static class FileHelper
     /// <param name="sourcePath">The source to copy files from</param>
     /// <param name="destPath">The destination to copy files to</param>
     /// <param name="fileFilter">List of files to white/blacklist</param>
-    /// <param name="isWhitelist">Is the filter a white or blacklist?</param>
     /// <param name="ct">CancellationToken to stop operation if requested by the user</param>
     private static async Task CopyFolderRobocopyAsync(
         string sourcePath,
         string destPath,
         List<string> fileFilter,
-        bool isWhitelist,
         CancellationToken ct)
     {
         if (!Directory.Exists(sourcePath))
@@ -303,40 +336,15 @@ public static class FileHelper
         // Ensure destination exists
         Directory.CreateDirectory(destPath);
 
-        // Build the base robocopy arguments for recursive copy (/E)
         var argsBase = $"\"{sourcePath}\" \"{destPath}\" /E /NFL /NDL /NJH /NJS /NC /NS";
-
-        if (isWhitelist)
-        {
-            // For each file in the whitelist, call robocopy to copy only that file.
-            foreach (var file in fileFilter)
-            {
-                ct.ThrowIfCancellationRequested();
-                // /IF is not available, so specify the file directly as a file pattern.
-                string args = $"\"{sourcePath}\" \"{destPath}\" \"{file}\" /COPYALL /R:3 /W:5";
-                await RunRobocopyAsync(args, ct);
-            }
-        }
-        else
-        {
-            var excludes = string.Join(" ", fileFilter.Select(f => $"\"{f}\""));
-            var args = $"{argsBase} /R:3 /W:5 {(fileFilter.Any() ? $"/XF {excludes}" : string.Empty)}";
-            await RunRobocopyAsync(args, ct);
-        }
-    }
-
-    /// <summary>
-    /// Runs the robocopy command with the given arguments
-    /// </summary>
-    /// <param name="arguments">Extra parameters used in the robocopy command</param>
-    /// <param name="ct">CancellationToken to stop operation if requested by the user</param>
-    private static async Task RunRobocopyAsync(string arguments, CancellationToken ct)
-    {
+        var excludes = string.Join(" ", fileFilter.Select(f => $"\"{f}\""));
+        var args = $"{argsBase} /R:3 /W:5{(fileFilter.Count != 0 ? $" /XD {excludes} /XF {excludes}" : null)}";
+        
         try
         {
-            using var process = new System.Diagnostics.Process();
+            using var process = new Process();
             process.StartInfo.FileName = "robocopy";
-            process.StartInfo.Arguments = arguments;
+            process.StartInfo.Arguments = args;
             process.StartInfo.CreateNoWindow = true;
             process.StartInfo.UseShellExecute = false;
             process.Start();
@@ -357,14 +365,12 @@ public static class FileHelper
     /// <param name="sourcePath">The source to copy files from</param>
     /// <param name="destPath">The destination to copy files to</param>
     /// <param name="fileFilter">List of files to white/blacklist</param>
-    /// <param name="isWhitelist">Is the filter a white or blacklist?</param>
     /// <param name="semaphore">Limits the number of concurrent file copies</param>
     /// <param name="ct">CancellationToken to stop operation if requested by the user</param>
     private static async Task CopyFolderRecursiveAsync(
         string sourcePath,
         string destPath,
         List<string> fileFilter,
-        bool isWhitelist,
         SemaphoreSlim semaphore,
         CancellationToken ct)
     {
@@ -375,7 +381,7 @@ public static class FileHelper
 
         var files = Directory.GetFiles(sourcePath);
         var fileTasks = files.Select(filePath =>
-            CopySingleFileAsync(filePath, destPath, fileFilter, isWhitelist, semaphore, ct)).ToList();
+            CopySingleFileAsync(filePath, destPath, fileFilter, semaphore, ct)).ToList();
 
         await Task.WhenAll(fileTasks);
 
@@ -384,7 +390,7 @@ public static class FileHelper
         {
             var subDirName = Path.GetFileName(subDir);
             var newDestPath = Path.Combine(destPath, subDirName);
-            return CopyFolderRecursiveAsync(subDir, newDestPath, fileFilter, isWhitelist, semaphore, ct);
+            return CopyFolderRecursiveAsync(subDir, newDestPath, fileFilter, semaphore, ct);
         }).ToList();
 
         await Task.WhenAll(subDirTasks);
@@ -396,24 +402,34 @@ public static class FileHelper
     /// <param name="sourceFile">The sourceFile to copy</param>
     /// <param name="destFolder">The destination to copy the file to</param>
     /// <param name="fileFilter">List of files to white/blacklist</param>
-    /// <param name="isWhitelist">Is the filter a white or blacklist?</param>
     /// <param name="semaphore">Limits the number of concurrent file copies</param>
     /// <param name="ct">CancellationToken to stop operation if requested by the user</param>
     private static async Task CopySingleFileAsync(
         string sourceFile,
         string destFolder,
         List<string> fileFilter,
-        bool isWhitelist,
         SemaphoreSlim semaphore,
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
         var fileName = Path.GetFileName(sourceFile);
-        var shouldCopy = isWhitelist ? fileFilter.Contains(fileName) : !fileFilter.Contains(fileName);
-        if (!shouldCopy) return;
+        if (fileFilter.Contains(fileName)) return;
 
         var destFile = Path.Combine(destFolder, fileName);
+
+        if (File.Exists(destFile))
+        {
+            try
+            {
+                var destInfo = new FileInfo(destFile);
+                destInfo.Attributes &= ~FileAttributes.ReadOnly;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to clean permissions for destination file {destFile}: {ex.Message}");
+            }
+        }
 
         await semaphore.WaitAsync(ct);
         try
@@ -421,12 +437,155 @@ public static class FileHelper
             const int bufferSize = 1048576;
             await using var sourceStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, true);
             await using var destStream = new FileStream(destFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, true);
-
             await sourceStream.CopyToAsync(destStream, bufferSize, ct);
         }
         finally
         {
             semaphore.Release();
+        }
+
+    }
+    
+    /// <summary>
+    /// Turns the given file path into a zip file
+    /// </summary>
+    /// <param name="targetPath">Target file path</param>
+    /// <param name="zipPath">Path the zip is supposed to end up at</param>
+    /// <param name="ct"></param>
+    public static async Task ZipDir(string targetPath, string zipPath, CancellationToken ct)
+    { 
+        try
+        {
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = "7z",
+                Arguments = $"a -mx1 \"{zipPath}\" \"{targetPath}\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            
+            await Task.Run(() =>
+            {
+                using var process = Process.Start(processStartInfo);
+                process?.WaitForExit();
+            }, ct);
+            return;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"7z process failed, falling back to internal dll: {ex.Message}");
+        }
+        
+        try
+        {
+            if (File.Exists(zipPath))
+            {
+                CleanPermissions(zipPath);
+                File.Delete(zipPath);
+            }
+            
+            await Task.Run(() =>
+            {
+                SevenZipBase.SetLibraryPath("Libs/7z.dll");
+                var compressor = new SevenZipCompressor
+                {
+                    CompressionLevel = SevenZip.CompressionLevel.Fast,
+                    CompressionMethod = CompressionMethod.Lzma,
+                    CompressionMode   = SevenZip.CompressionMode.Create,
+                    IncludeEmptyDirectories = false
+                };
+                compressor.CompressDirectory(targetPath, zipPath);
+                
+            }, ct);
+            return;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"7z dll failed, falling back to .NET ZipFile: {ex.Message}");
+        }
+
+        try
+        {
+            if (File.Exists(zipPath))
+            {
+                CleanPermissions(zipPath);
+                File.Delete(zipPath);
+            }
+        
+            await Task.Run(() => ZipFile.CreateFromDirectory(targetPath, zipPath, CompressionLevel.Fastest, false), ct);
+
+        }
+        catch (Exception ex)
+        {
+            Log.Error($".NET ZipFile failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Cleans the permissions of a folder and its contents, removing read-only flags and setting full control for the current user
+    /// </summary>
+    /// <param name="rootFolder">Folder to clean</param>
+    /// <param name="recursive">Recursive clean?</param>
+    private static void CleanPermissions(string rootFolder, bool recursive = false)
+    {
+        var directoryInfo = new DirectoryInfo(rootFolder);
+        Log.Debug("Removing read-only flag");
+        directoryInfo.Attributes &= ~FileAttributes.ReadOnly;
+
+        Task.Run(() =>
+        {
+            Log.Debug("Setting full control for current user on directory");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var security = directoryInfo.GetAccessControl();
+                security.AddAccessRule(new FileSystemAccessRule(
+                    WindowsIdentity.GetCurrent().Name,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow
+                ));
+                directoryInfo.SetAccessControl(security);
+            }
+            else
+            {
+                Log.Debug("Running on non-Windows");
+                Process.Start("chmod", $"777 \"{rootFolder}\"");
+            }
+        });
+
+        if (!recursive) return;
+        
+        foreach (var file in directoryInfo.GetFiles())
+        {
+            file.Attributes &= ~FileAttributes.ReadOnly;
+            try
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    var fileSecurity = file.GetAccessControl();
+                    fileSecurity.AddAccessRule(new FileSystemAccessRule(
+                        WindowsIdentity.GetCurrent().Name,
+                        FileSystemRights.FullControl,
+                        AccessControlType.Allow));
+                    file.SetAccessControl(fileSecurity);
+                }
+                else
+                {
+                    Process.Start("chmod", $"777 \"{file.FullName}\"");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error updating permissions for file {file.FullName}: {ex.Message}");
+            }
+        }
+        
+        foreach (var subDir in directoryInfo.GetDirectories())
+        {
+            CleanPermissions(subDir.FullName, true);
         }
     }
 }

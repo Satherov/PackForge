@@ -1,62 +1,46 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using LibGit2Sharp;
+using PackForge.Core.Data;
 using PackForge.Core.Helpers;
 using Serilog;
-using Signature = Tmds.DBus.Protocol.Signature;
 
 namespace PackForge.Core.Service;
 
 public static partial class GitService
 {
-    private static readonly string TempRepoPath;
-    private static readonly string TempPath;
-    
-    static GitService()
-    {
-        var path = Path.GetTempPath();
-        TempRepoPath = Path.Combine(path, "PackForge", "TempRepo");
-        TempPath = path;
-    }
+    private static readonly string TempRepoPath = Path.Combine(
+        Path.GetTempPath(), "PackForge", "TempRepo");
     
     public static async Task<string> SilentCloneGitHubRepo(string? gitHubUrl, CancellationToken cts)
     {
         Log.Debug("Starting silent clone task...");
-        if (!Validator.IsNullOrWhiteSpace(gitHubUrl) && await IsValidGitHubRepoAsync(gitHubUrl!, true)) return await CloneGitHubRepo(gitHubUrl!, cts, true);
+        if (!Validator.IsNullOrWhiteSpace(gitHubUrl) && await IsValidGitHubRepoAsync(gitHubUrl!, true)) 
+            return await CloneGitHubRepo(gitHubUrl!, cts, true);
         Log.Debug("Invalid GitHub repository URL provided to silent task");
         return string.Empty;
     }
     
-    /// <summary>
-    /// Clones the GitHub repository to a temporary folder for further use
-    /// </summary>
-    /// <param name="gitHubUrl">Url to clone from</param>
-    /// <param name="userCts">CancellationToken used for user requested process killing</param>
-    /// <param name="silent">Defines the log level for downloads. false = default, true = debug</param>
-    /// <param name="timeoutMilliseconds">Timeout to prevent deadlock. Defaults to 60 seconds</param>
-    /// <returns></returns>
     public static async Task<string> CloneGitHubRepo(string gitHubUrl, CancellationToken userCts, bool silent = false, int timeoutMilliseconds = 60000)
     {
-        if(silent) Log.Debug($"Downloading GitHub repository: {gitHubUrl}");
-        else Log.Information($"Downloading GitHub repository: {gitHubUrl}");
+        var stopwatch = Stopwatch.StartNew();
+        
+        if(silent) Log.Debug($"Processing GitHub repository: {gitHubUrl}");
+        else Log.Information($"Processing GitHub repository: {gitHubUrl}");
         
         using var timeoutCts = new CancellationTokenSource(timeoutMilliseconds);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, userCts);
 
-        if (Validator.DirectoryExists(GetTempPath()))
-        {
-            Log.Debug("Deleting existing temp repo");
-            await DeleteTempRepo(silent);
-        }
-        Log.Debug("Creating new temp repo");
-        Directory.CreateDirectory(GetTempRepoPath());
-
-        // Extract owner and repo from URL
         var match = GitHubRepo().Match(gitHubUrl);
         if (!match.Success)
         {
@@ -70,14 +54,18 @@ public static partial class GitService
         var apiUrl = $"https://api.github.com/repos/{owner}/{repo}";
         using (var httpClient = new HttpClient())
         {
-            Log.Debug($"Requesting default branch from GitHub API");
+            Log.Debug("Requesting default branch from GitHub API");
             httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+            // Attempt to retrieve token
+            var token = await TokenManager.RetrieveTokenAsync("GitHub");
+            if (!Validator.IsNullOrWhiteSpace(token, logLevel:"debug"))
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("token", token);
+
             try
             {
                 var response = await httpClient.GetAsync(apiUrl, linkedCts.Token);
                 if (response.IsSuccessStatusCode)
                 {
-                    Log.Debug($"GitHub API returned {response.StatusCode}");
                     var json = await response.Content.ReadAsStringAsync(linkedCts.Token);
                     using var jsonDoc = JsonDocument.Parse(json);
                     if (jsonDoc.RootElement.TryGetProperty("default_branch", out var branchElement))
@@ -86,23 +74,54 @@ public static partial class GitService
                 }
                 else
                 {
-                    if(silent) Log.Debug($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'");
-                    else Log.Warning($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'");
+                    Log.Warning($"GitHub API returned {response.StatusCode}. Using '{defaultBranch}'");
                 }
             }
             catch (Exception ex)
             {
-                if(silent) Log.Debug($"API error: {ex.Message}. Using '{defaultBranch}'");
-                else Log.Error($"API error: {ex.Message}. Using '{defaultBranch}'");
+                Log.Error($"API error: {ex.Message}. Using '{defaultBranch}'");
             }
         }
 
+        if (Validator.DirectoryExists(GetTempPath()))
+        {
+            if (Repository.IsValid(GetTempRepoPath()))
+            {
+                try
+                {
+                    using var repoInstance = new Repository(GetTempRepoPath());
+                    var remote = repoInstance.Network.Remotes["origin"];
+                    Commands.Fetch(repoInstance, remote.Name, remote.FetchRefSpecs.Select(x => x.Specification), null, null);
+                    var remoteBranch = repoInstance.Branches[$"origin/{defaultBranch}"];
+                    if (remoteBranch != null && repoInstance.Head.Tip.Sha == remoteBranch.Tip.Sha)
+                    {
+                        Log.Debug("Repository is already up-to-date. Skipping clone.");
+                        return GetTempRepoPath();
+                    }
+                    else
+                    {
+                        Log.Debug("Repository is outdated. Deleting old repository.");
+                        await DeleteTempRepo(silent);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Error checking repository status: {ex.Message}");
+                    await DeleteTempRepo(silent);
+                }
+            }
+            else
+            {
+                await DeleteTempRepo(silent);
+            }
+        }
+
+        Log.Debug("Creating new temp repo");
+        Directory.CreateDirectory(GetTempRepoPath());
+
         var cloneOptions = new CloneOptions
         {
-            FetchOptions =
-            {
-                Depth = 1
-            },
+            FetchOptions = { Depth = 1 },
             BranchName = defaultBranch
         };
 
@@ -113,8 +132,7 @@ public static partial class GitService
                 Repository.Clone(gitHubUrl, GetTempRepoPath(), cloneOptions);
             }, linkedCts.Token);
 
-            if(silent) Log.Debug($"Successfully downloaded GitHub repository: {gitHubUrl}");
-            else Log.Information($"Successfully downloaded GitHub repository: {gitHubUrl}");
+            Log.Information($"Successfully cloned GitHub repository: {gitHubUrl}");
             return GetTempRepoPath();
         }
         catch (OperationCanceledException)
@@ -125,18 +143,107 @@ public static partial class GitService
         {
             Log.Error($"Clone failed: {ex.Message}");
         }
+        
+        stopwatch.Stop();
+        if(silent) Log.Debug($"GitHub repository cloned in {stopwatch.ElapsedMilliseconds}ms");
+        else Log.Information($"GitHub repository cloned in {stopwatch.ElapsedMilliseconds}ms");
 
         return string.Empty;
     }
 
-    /// <summary>
-    /// Automatically commits and pushes files to the GitHub repository
-    /// </summary>
-    /// <param name="relativeFilePaths">Path of all files to commit</param>
-    /// <param name="commitMessage">Message used to auto commit</param>
-    /// <param name="personalAccessToken">Access token of the user</param>
-    /// <returns></returns>
-    public static async Task<bool> CommitAndPushFile(string[] relativeFilePaths, string commitMessage, string personalAccessToken)
+    private static async Task DownloadDirectoryRecursive(HttpClient client, string apiUrl, string destinationFolder)
+    {
+        Directory.CreateDirectory(destinationFolder);
+        var json = await client.GetStringAsync(apiUrl);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        if (root.ValueKind != JsonValueKind.Array)
+            throw new Exception("Expected directory contents as a JSON array.");
+
+        foreach (var item in root.EnumerateArray())
+        {
+            var type = item.GetProperty("type").GetString();
+            var name = item.GetProperty("name").GetString();
+            var localPath = Path.Combine(destinationFolder, name!);
+
+            Log.Debug($"Processing: {name}");
+
+            switch (type)
+            {
+                case "file":
+                {
+                    var downloadUrl = item.GetProperty("download_url").GetString();
+                    if (string.IsNullOrEmpty(downloadUrl))
+                        continue;
+
+                    var remoteSha = item.GetProperty("sha").GetString();
+
+                    if (File.Exists(localPath))
+                    {
+                        try
+                        {
+                            var localSha = ComputeGitBlobHash(localPath);
+                            if (string.Equals(localSha, remoteSha, StringComparison.OrdinalIgnoreCase))
+                            {
+                                Log.Debug($"Skipping file {name}, hash matches.");
+                                continue;
+                            }
+
+                            Log.Debug($"File {name} exists but hash mismatch, re-downloading.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"Error computing hash for {name}: {ex.Message}");
+                        }
+                    }
+
+                    var fileBytes = await client.GetByteArrayAsync(downloadUrl);
+                    await File.WriteAllBytesAsync(localPath, fileBytes);
+                    break;
+                }
+                case "dir":
+                {
+                    var subdirUrl = item.GetProperty("url").GetString();
+                    if (!Directory.Exists(localPath)) Directory.CreateDirectory(localPath);
+
+                    await DownloadDirectoryRecursive(client, subdirUrl!, localPath);
+                    break;
+                }
+            }
+        }
+    }
+    
+    internal static async Task DownloadGitHubDirectoryAsync(string url, string destinationFolder)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !Directory.Exists(destinationFolder))
+            return;
+
+        Log.Debug("Downloading GitHub directory...");
+
+        var uri = new Uri(url);
+        var segments = uri.AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length < 4 || segments[2] != "tree")
+            throw new ArgumentException("URL must be in the format https://github.com/{owner}/{repo}/tree/{branch}/{path}");
+
+        var owner = segments[0];
+        var repo = segments[1];
+        var branch = segments[3];
+        var path = segments.Length > 4 ? string.Join("/", segments.Skip(4)) : string.Empty;
+
+        var apiUrl = $"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={branch}";
+        Log.Debug($"Downloading directory from GitHub API: {apiUrl}");
+
+        using var httpClient = new HttpClient();
+        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+        var token = await TokenManager.RetrieveTokenAsync("GitHub");
+        if (!Validator.IsNullOrWhiteSpace(token, logLevel:"debug"))
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("token", token);
+
+        await DownloadDirectoryRecursive(httpClient, apiUrl, destinationFolder);
+    }
+
+    public static async Task<bool> CommitAndPushFile(string[] relativeFilePaths, string commitMessage)
     {
         if (!Validator.DirectoryExists(GetTempRepoPath()) || !Repository.IsValid(GetTempRepoPath()))
         {
@@ -144,12 +251,11 @@ public static partial class GitService
             return false;
         }
 
-        return await Task.Run(() =>
+        return await Task.Run(async () =>
         {
             try
             {
                 using var repo = new Repository(GetTempRepoPath());
-
                 var hasChanges = false;
 
                 foreach (var path in relativeFilePaths)
@@ -172,19 +278,23 @@ public static partial class GitService
                     return false;
                 }
 
-                var signature = new LibGit2Sharp.Signature("PackForge", "packforge@allthemods.net", DateTimeOffset.Now);
+                var signature = new Signature("PackForge", "packforge@satherov.dev", DateTimeOffset.Now);
                 var commit = repo.Commit(commitMessage, signature, signature);
 
                 Log.Information($"Committed Automatic Updates: {commit.Sha}");
 
                 var remote = repo.Network.Remotes["origin"];
+
+                var token = await TokenManager.RetrieveTokenAsync("GitHub");
+                if (Validator.IsNullOrWhiteSpace(token, logLevel:"debug")) return false;
+                
                 var options = new PushOptions
                 {
                     CredentialsProvider = (_, _, _) =>
                         new UsernamePasswordCredentials
                         {
                             Username = "PackForge",
-                            Password = personalAccessToken
+                            Password = token
                         }
                 };
 
@@ -208,9 +318,6 @@ public static partial class GitService
         });
     }
 
-    /// <summary>
-    /// Deletes the temporary repository folder to prevent clutter
-    /// </summary>
     public static async Task DeleteTempRepo(bool silent = false)
     {
         if(silent) Log.Debug($"Deleting temporary repository folder: {GetTempPath()}");
@@ -245,9 +352,6 @@ public static partial class GitService
         }
     }
 
-    /// <summary>
-    /// Checks if the provided URL is a valid GitHub repository
-    /// </summary>
     public static async Task<bool> IsValidGitHubRepoAsync(string url, bool silent = false)
     {
         if(silent) Log.Debug($"Validating GitHub repository: {url}");
@@ -264,14 +368,15 @@ public static partial class GitService
 
             var owner = match.Groups[1].Value;
             var repo = match.Groups[2].Value;
-
             var apiUrl = $"https://api.github.com/repos/{owner}/{repo}";
 
             using var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+            var token = await TokenManager.RetrieveTokenAsync("GitHub");
+            if (!Validator.IsNullOrWhiteSpace(token, logLevel:"debug"))
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("token", token);
 
             var response = await httpClient.GetAsync(apiUrl);
-
             Log.Debug($"GitHub API returned {response.StatusCode}");
             return response.IsSuccessStatusCode;
         }
@@ -281,8 +386,18 @@ public static partial class GitService
         }
     }
     
+    private static string ComputeGitBlobHash(string filePath)
+    {
+        var fileBytes = File.ReadAllBytes(filePath);
+        var header = $"blob {fileBytes.Length}\0";
+        var headerBytes = Encoding.UTF8.GetBytes(header);
+        var combined = headerBytes.Concat(fileBytes).ToArray();
+        var hashBytes = SHA1.HashData(combined);
+        return Convert.ToHexStringLower(hashBytes);
+    }
+    
     public static string GetTempRepoPath() => TempRepoPath;
-    public static string GetTempPath() => TempRepoPath;
+    private static string GetTempPath() => TempRepoPath;
 
     [GeneratedRegex(@"^https:\/\/github\.com\/([^\/]+)\/([^\/]+)?$")]
     private static partial Regex GitHubRepo();
