@@ -18,12 +18,9 @@ public static class GlobalLog
     {
         try
         {
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
-                .WriteTo.File(new LogLevelTextFormatter(),
-                    Path.Combine(LogDataPath, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log"))
-                .WriteTo.Sink(new LogEventSink(LogEntries, new LogLevelTextFormatter()))
-                .CreateLogger();
+            Log.Logger = new LoggerConfiguration().MinimumLevel.Debug().WriteTo
+                .File(new LogLevelTextFormatter(), Path.Combine(LogDataPath, $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log")).WriteTo
+                .Sink(new LogEventSink(LogEntries, new LogLevelTextFormatter())).CreateLogger();
 
             Log.Debug("Logger start-up complete");
             Log.Information("Application starting up");

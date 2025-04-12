@@ -32,8 +32,7 @@ public class LiteralCommandNode(string literal, CommandAction action) : CommandN
     }
 }
 
-public class RequiredArgumentCommandNode<T>(string name, ArgumentType<T?> type, CommandAction action)
-    : CommandNodeBase(name, action)
+public class RequiredArgumentCommandNode<T>(string name, ArgumentType<T?> type, CommandAction action) : CommandNodeBase(name, action)
 {
     private ArgumentType<T?> Type { get; } = type;
 
@@ -47,15 +46,13 @@ public class RequiredArgumentCommandNode<T>(string name, ArgumentType<T?> type, 
         catch (Exception ex)
         {
             parsedValue = null;
-            Log.Error(
-                $"Error parsing required argument '{Name}': {token} is not a valid {Type.GetType().Name}. Exception: {ex.Message}");
+            Log.Error($"Error parsing required argument '{Name}': {token} is not a valid {Type.GetType().Name}. Exception: {ex.Message}");
             return false;
         }
     }
 }
 
-public class OptionalArgumentCommandNode<T>(string name, ArgumentType<T?> type, CommandAction action)
-    : CommandNodeBase(name, action)
+public class OptionalArgumentCommandNode<T>(string name, ArgumentType<T?> type, CommandAction action) : CommandNodeBase(name, action)
 {
     private ArgumentType<T?> Type { get; } = type;
 

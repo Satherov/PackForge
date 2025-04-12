@@ -47,8 +47,7 @@ public class CommandDispatcher
         if (!matchedRoot) Log.Error("Error: no matching root command for token: " + tokens[0]);
     }
 
-    private static async Task<bool> Traverse(CommandNodeBase node, string[] tokens, int index, CommandContext context,
-        List<string> matchedTokens)
+    private static async Task<bool> Traverse(CommandNodeBase node, string[] tokens, int index, CommandContext context, List<string> matchedTokens)
     {
         if (index == tokens.Length)
         {
@@ -94,10 +93,7 @@ public class CommandDispatcher
             string? token = tokens[i];
             bool isPartial = i == tokens.Length - 1 && !input.EndsWith(' ');
             if (isPartial)
-                return currentNodes
-                    .Where(node => node.Name.StartsWith(token, StringComparison.InvariantCultureIgnoreCase))
-                    .Select(FormatSuggestion)
-                    .ToList();
+                return currentNodes.Where(node => node.Name.StartsWith(token, StringComparison.InvariantCultureIgnoreCase)).Select(FormatSuggestion).ToList();
 
             CommandNodeBase? match = currentNodes.FirstOrDefault(n => n.Match(token, out _));
             if (match == null) return [];

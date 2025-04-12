@@ -35,15 +35,11 @@ public class TokenWindowViewModel : ReactiveObject
     {
         _ = InitializeTokensAsync();
 
-        OpenGitHubTokenPageCommand = new AsyncRelayCommand(async () =>
-            await Task.Run(() => OpenPage("https://github.com/settings/tokens/new")));
-        EncryptGitHubTokenCommand = new AsyncRelayCommand(async () =>
-            await Task.Run(() => TokenManager.StoreTokenAsync(TokenType.GitHub, GitHubToken)));
+        OpenGitHubTokenPageCommand = new AsyncRelayCommand(async () => await Task.Run(() => OpenPage("https://github.com/settings/tokens/new")));
+        EncryptGitHubTokenCommand = new AsyncRelayCommand(async () => await Task.Run(() => TokenManager.StoreTokenAsync(TokenType.GitHub, GitHubToken)));
 
-        OpenCurseforgeTokenPageCommand = new AsyncRelayCommand(async () =>
-            await Task.Run(() => OpenPage("https://console.curseforge.com/#/api-keys")));
-        EncryptCurseforgeTokenCommand = new AsyncRelayCommand(async () =>
-            await Task.Run(() => TokenManager.StoreTokenAsync(TokenType.Curseforge, CurseforgeToken)));
+        OpenCurseforgeTokenPageCommand = new AsyncRelayCommand(async () => await Task.Run(() => OpenPage("https://console.curseforge.com/#/api-keys")));
+        EncryptCurseforgeTokenCommand = new AsyncRelayCommand(async () => await Task.Run(() => TokenManager.StoreTokenAsync(TokenType.Curseforge, CurseforgeToken)));
     }
 
     private async Task InitializeTokensAsync()

@@ -15,11 +15,7 @@ public class LogEventSink(ObservableCollection<GlobalLog.LogEntry> logEntries, I
         formatter.Format(logEvent, writer);
         string rawMessage = writer.ToString();
 
-        GlobalLog.LogEntry entry = new(
-            logEvent.Timestamp.DateTime,
-            logEvent.Level,
-            rawMessage.ReplaceLineEndings().Trim()
-        );
+        GlobalLog.LogEntry entry = new(logEvent.Timestamp.DateTime, logEvent.Level, rawMessage.ReplaceLineEndings().Trim());
 
         Dispatcher.UIThread.Post(() =>
         {

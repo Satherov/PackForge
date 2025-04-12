@@ -13,16 +13,8 @@ namespace PackForge.Core.Builders;
 
 public abstract class JsonBuilder
 {
-    public static async Task GenerateManifest(
-        string path,
-        string mcVersion = "1.0.0",
-        string packVersion = "0.0.0",
-        string packAuthor = "Unknown",
-        string packName = "Unknown Modpack",
-        string loaderType = "Unknown Loader",
-        string loaderVersion = "0.0.0",
-        int recommendedRam = 0,
-        CancellationToken ct = default)
+    public static async Task GenerateManifest(string path, string mcVersion = "1.0.0", string packVersion = "0.0.0", string packAuthor = "Unknown",
+        string packName = "Unknown Modpack", string loaderType = "Unknown Loader", string loaderVersion = "0.0.0", int recommendedRam = 0, CancellationToken ct = default)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         Log.Information($"Generating manifest");
@@ -69,8 +61,7 @@ public abstract class JsonBuilder
         Log.Information($"Manifest generation took {stopwatch.ElapsedMilliseconds}ms");
     }
 
-    private static async Task<JArray> ProcessMinecraftInstanceAsync(string pathToJson, string path,
-        CancellationToken ct)
+    private static async Task<JArray> ProcessMinecraftInstanceAsync(string pathToJson, string path, CancellationToken ct)
     {
         Log.Information($"Processing {Path.GetFileName(pathToJson)}");
 
@@ -89,8 +80,7 @@ public abstract class JsonBuilder
         JArray installedAddons = (JArray)root["installedAddons"]!.DeepClone();
         JArray matchedEntries = [];
 
-        foreach (string folder in new[] { modsFolder, shaderpacksFolder, resourcepacksFolder }.Where(value =>
-                     !string.IsNullOrEmpty(value)))
+        foreach (string folder in new[] { modsFolder, shaderpacksFolder, resourcepacksFolder }.Where(value => !string.IsNullOrEmpty(value)))
         {
             if (Validator.DirectoryExists(folder, LogEventLevel.Debug))
                 foreach (JToken addon in ProcessFolderAsync(folder, installedAddons, ct))
@@ -106,8 +96,7 @@ public abstract class JsonBuilder
 
             Log.Debug("Unmatched entries:");
             foreach (JToken leftover in installedAddons)
-                Log.Debug(
-                    $"fileName: {leftover["installedFile"]?["fileName"]}, addonID: {leftover["addonID"]}, fileID: {leftover["installedFile"]?["id"]}");
+                Log.Debug($"fileName: {leftover["installedFile"]?["fileName"]}, addonID: {leftover["addonID"]}, fileID: {leftover["installedFile"]?["id"]}");
         }
 
         File.Delete(pathToJson);
@@ -142,8 +131,7 @@ public abstract class JsonBuilder
                 ["required"] = true
             });
 
-            Log.Debug(
-                $"Match found for {fileName}: addonID: {match["addonID"]}, fileID: {match["installedFile"]?["id"]}");
+            Log.Debug($"Match found for {fileName}: addonID: {match["addonID"]}, fileID: {match["installedFile"]?["id"]}");
             installedAddons.Remove(match);
             File.Delete(filePath);
         }

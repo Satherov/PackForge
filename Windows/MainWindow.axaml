@@ -101,7 +101,7 @@
                                  Text="{Binding CurseforgeId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Watermark="Curseforge ID"
                                  ToolTip.Tip="Curseforge ID of the ModPack" />
-                        
+
                         <TextBox Grid.Column="4" MaxLines="1"
                                  Name="RecommendedRamTextBox"
                                  Text="{Binding RecommendedRam, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

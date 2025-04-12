@@ -14,15 +14,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        
-        MainWindowViewModel.FilteredLogEntries.ObserveCollectionChanges()
-            .Subscribe(_ =>
-            {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    LogScrollViewer.ScrollToEnd();
-                });
-            });
+
+        MainWindowViewModel.FilteredLogEntries.ObserveCollectionChanges().Subscribe(_ => { Dispatcher.UIThread.Post(() => { LogScrollViewer.ScrollToEnd(); }); });
     }
 
     protected override void OnClosed(EventArgs e)
@@ -40,7 +33,8 @@ public partial class MainWindow : Window
         }
 
         WindowHelper.CloseAllWindows();
-
+        MainWindowViewModel.Shutdown();
+            
         Log.Debug("Application window closed");
         base.OnClosed(e);
     }

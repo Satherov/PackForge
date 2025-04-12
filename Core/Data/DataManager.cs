@@ -34,8 +34,7 @@ public static class DataManager
         try
         {
             string json = File.ReadAllText(AppDataPath);
-            _container = JsonSerializer.Deserialize<ConfigDataContainer>(json, JsonOptions)
-                         ?? throw new NullReferenceException("Config could not be deserialized.");
+            _container = JsonSerializer.Deserialize<ConfigDataContainer>(json, JsonOptions) ?? throw new NullReferenceException("Config could not be deserialized.");
             Log.Debug("Config loaded successfully");
         }
         catch (Exception ex)
@@ -88,9 +87,7 @@ public static class DataManager
 
             property.SetValue(_container, value);
 
-            string? formattedValue = value is IEnumerable<string> list
-                ? $"[{string.Join(", ", list)}]"
-                : value?.ToString();
+            string? formattedValue = value is IEnumerable<string> list ? $"[{string.Join(", ", list)}]" : value?.ToString();
 
             Log.Debug($"Set '{property.Name}' to {formattedValue}");
         }

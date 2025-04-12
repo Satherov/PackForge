@@ -17,14 +17,16 @@ public partial class FilterWindowViewModel : ObservableObject
             _excludedCommon ??= [];
             return string.Join(Environment.NewLine, _excludedCommon);
         }
-        
+
         set
         {
             _excludedCommon = value.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries).ToList();
             OnPropertyChanged();
         }
     }
+
     private List<string>? _excludedClient;
+
     public string PrettyExcludedClient
     {
         get
@@ -32,14 +34,16 @@ public partial class FilterWindowViewModel : ObservableObject
             _excludedClient ??= [];
             return string.Join(Environment.NewLine, _excludedClient);
         }
-        
+
         set
         {
             _excludedClient = value.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries).ToList();
             OnPropertyChanged();
         }
     }
+
     private List<string>? _excludedServer;
+
     public string PrettyExcludedServer
     {
         get
@@ -47,14 +51,16 @@ public partial class FilterWindowViewModel : ObservableObject
             _excludedServer ??= [];
             return string.Join(Environment.NewLine, _excludedServer);
         }
-        
+
         set
         {
             _excludedServer = value.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries).ToList();
             OnPropertyChanged();
         }
     }
+
     private List<string>? _excludedAuthors;
+
     public string PrettyExcludedAuthors
     {
         get
@@ -62,7 +68,7 @@ public partial class FilterWindowViewModel : ObservableObject
             _excludedAuthors ??= [];
             return string.Join(Environment.NewLine, _excludedAuthors);
         }
-        
+
         set
         {
             _excludedAuthors = value.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries).ToList();

@@ -11,10 +11,7 @@ namespace PackForge;
 
 public class App : Application
 {
-    public static readonly string AppDataPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "PackForge"
-    );
+    public static readonly string AppDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PackForge");
 
     public override void Initialize()
     {

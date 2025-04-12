@@ -45,8 +45,7 @@ public static partial class GitService
 
     // Existing methods for cloning, updating repo, etc.
 
-    public static async Task<GitHubRepoInfo> GetGitHubRepoInfoAsync(string url, string? githubToken = null,
-        CancellationToken ct = default)
+    public static async Task<GitHubRepoInfo> GetGitHubRepoInfoAsync(string url, string? githubToken = null, CancellationToken ct = default)
     {
         if (!TryValidateGitHubUrl(url, out Match? match))
             return GitHubRepoInfo.Empty;
@@ -58,10 +57,8 @@ public static partial class GitService
 
         JsonDocument? doc = await ExecuteGitHubApiCallAsync(apiUrl, githubToken, ct);
         if (Validator.IsNullOrEmpty(doc)) return GitHubRepoInfo.Empty;
-        
-        string? defaultBranch = !string.IsNullOrWhiteSpace(branchFromUrl)
-            ? branchFromUrl
-            : doc.RootElement.GetProperty("default_branch").GetString();
+
+        string? defaultBranch = !string.IsNullOrWhiteSpace(branchFromUrl) ? branchFromUrl : doc.RootElement.GetProperty("default_branch").GetString();
 
         return new GitHubRepoInfo
         {
@@ -96,8 +93,7 @@ public static partial class GitService
             Log.Warning("GitHub token is not set");
 
         GitHubRepoInfo repoInfo = await GetGitHubRepoInfoAsync(url, githubToken, ct);
-        if (Validator.IsNullOrWhiteSpace(repoInfo.Owner) ||
-            Validator.IsNullOrWhiteSpace(repoInfo.RepoName))
+        if (Validator.IsNullOrWhiteSpace(repoInfo.Owner) || Validator.IsNullOrWhiteSpace(repoInfo.RepoName))
             return;
 
         if (Validator.DirectoryExists(TempRepoPath))
@@ -112,8 +108,7 @@ public static partial class GitService
                     Log.Information("Updating existing repository");
                     FetchOptions fetchOptions = new()
                     {
-                        CredentialsProvider = (_, __, ___) =>
-                            new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
+                        CredentialsProvider = (_, __, ___) => new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
                     };
 
                     try
@@ -161,8 +156,7 @@ public static partial class GitService
             BranchName = repoInfo.DefaultBranch,
             FetchOptions =
             {
-                CredentialsProvider = (_, __, ___) =>
-                    new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
+                CredentialsProvider = (_, __, ___) => new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
             }
         };
 
@@ -180,23 +174,20 @@ public static partial class GitService
     private static void DeleteTempRepo()
     {
         if (!Directory.Exists(TempRepoPath)) return;
-        
+
         DirectoryInfo dirInfo = new(TempRepoPath);
-        foreach (FileInfo file in dirInfo.GetFiles("*", SearchOption.AllDirectories))
-        {
-            file.Attributes = FileAttributes.Normal;
-        }
+        foreach (FileInfo file in dirInfo.GetFiles("*", SearchOption.AllDirectories)) file.Attributes = FileAttributes.Normal;
         Directory.Delete(TempRepoPath, true);
     }
-    
-    public static async Task CommitFilesAsync(string token, IEnumerable<string> fileRelativePaths, string commitMessage, CancellationToken ct = default)
+
+    public static async Task<bool> CommitFilesAsync(string token, IEnumerable<string> fileRelativePaths, string commitMessage, CancellationToken ct = default)
     {
         using Repository repo = new(TempRepoPath);
 
         foreach (string relativePath in fileRelativePaths)
         {
             string fullPath = Path.Combine(TempRepoPath, relativePath);
-            if (Validator.FileExists(fullPath))
+            if (Validator.FileExists(fullPath, LogEventLevel.Debug))
             {
                 Commands.Stage(repo, fullPath);
                 Log.Debug($"Staging file: {relativePath}");
@@ -210,7 +201,7 @@ public static partial class GitService
         if (repo.Index.Count == 0)
         {
             Log.Information("No files staged for commit.");
-            return;
+            return false;
         }
 
         IEnumerable<string> filesToCommit;
@@ -224,10 +215,7 @@ public static partial class GitService
             filesToCommit = repo.Index.Select(entry => entry.Path);
         }
 
-        foreach (string file in filesToCommit)
-        {
-            Log.Debug($"File to commit: {file}");
-        }
+        foreach (string file in filesToCommit) Log.Debug($"File to commit: {file}");
 
 
         GitHubUserInfo userInfo = await GetUserInfoAsync(token, ct);
@@ -235,7 +223,7 @@ public static partial class GitService
         if (Validator.IsNullOrWhiteSpace(userInfo.Username) || Validator.IsNullOrWhiteSpace(userInfo.Email))
         {
             Log.Warning("User information is not available");
-            return;
+            return false;
         }
 
         Signature signature = new("Packforge-Automation", "PackForge@satherov.dev", DateTimeOffset.Now);
@@ -249,45 +237,98 @@ public static partial class GitService
         {
             repo.Commit(commitBuilder.ToString(), signature, signature);
         }
+        catch(EmptyCommitException ex)
+        {
+            Log.Warning($"No changes - nothing to commit");
+            return false;
+        }
         catch (Exception ex)
         {
             Log.Error($"Failed to commit changes: {ex.Message}");
-            return;
+            return false;
         }
+
         Log.Information("Files committed successfully.");
+        return true;
     }
-    
+
     public static async Task PushCommits(string token, string url, CancellationToken ct = default)
     {
-        using Repository repo = new(TempRepoPath);
-        
-        GitHubRepoInfo repoInfo = await GetGitHubRepoInfoAsync(url, token, ct);
-        
-        Branch branchToPush = repo.Branches[repoInfo.DefaultBranch] ?? repo.CreateBranch(repoInfo.DefaultBranch, repo.Head.Tip);
-        
-        string remoteName = branchToPush.TrackedBranch?.RemoteName ?? "origin";
-        if (repo.Network.Remotes.Any(r => r.Name == remoteName))
+        if (!Repository.IsValid(TempRepoPath))
         {
-            repo.Network.Remotes.Remove(remoteName);
+            Log.Warning("Push skipped: invalid Git repository.");
+            return;
         }
+
+        using Repository repo = new(TempRepoPath);
+
+        if (repo.Head?.Tip == null)
+        {
+            Log.Information("Push skipped: no commits on current branch.");
+            return;
+        }
+
+        GitHubRepoInfo repoInfo = await GetGitHubRepoInfoAsync(url, token, ct);
+        Branch localBranch = repo.Branches[repoInfo.DefaultBranch]
+                             ?? repo.CreateBranch(repoInfo.DefaultBranch, repo.Head.Tip);
+
+        string remoteName = localBranch.TrackedBranch?.RemoteName ?? "origin";
+        if (repo.Network.Remotes.Any(r => r.Name == remoteName)) repo.Network.Remotes.Remove(remoteName);
         repo.Network.Remotes.Add(remoteName, url);
+
+        Branch? remoteBranch = repo.Branches[$"{remoteName}/{localBranch.FriendlyName}"];
+        bool hasNewCommits = false;
+
+        if (remoteBranch != null)
+        {
+            HistoryDivergence? divergence = repo.ObjectDatabase.CalculateHistoryDivergence(localBranch.Tip, remoteBranch.Tip);
+            hasNewCommits = divergence?.AheadBy > 0;
+        }
+        else
+        {
+            hasNewCommits = true;
+        }
+
+        if (!hasNewCommits)
+        {
+            Log.Information("Push skipped: branch is up-to-date with remote.");
+            return;
+        }
+
+        IEnumerable<Commit> newCommits = remoteBranch != null
+            ? repo.Commits.QueryBy(new CommitFilter
+            {
+                IncludeReachableFrom = localBranch.Tip,
+                ExcludeReachableFrom = remoteBranch.Tip
+            }).ToList() : [];
+        
+        if(!newCommits.Any()) 
+        {
+            Log.Information("Push skipped: no new commits to push.");
+            return;
+        } 
+
+        foreach (Commit commit in newCommits)
+            Log.Debug($"Pushing commit: {commit.MessageShort} - {commit.Sha}");
 
         PushOptions pushOptions = new()
         {
-            CredentialsProvider = (_, _, _) =>
-                new UsernamePasswordCredentials { Username = "x-access-token", Password = token }
+            CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials
+            {
+                Username = "x-access-token",
+                Password = token
+            }
         };
 
-        Remote remote = repo.Network.Remotes["origin"];
-        string pushRefSpec = $"refs/heads/{branchToPush.FriendlyName}:refs/heads/{branchToPush.FriendlyName}";
+        Remote remote = repo.Network.Remotes[remoteName];
+        string pushRefSpec = $"refs/heads/{localBranch.FriendlyName}:refs/heads/{localBranch.FriendlyName}";
         repo.Network.Push(remote, pushRefSpec, pushOptions);
 
-        Log.Information($"Branch '{branchToPush.FriendlyName}' pushed successfully to remote with URL '{url}'");
+        Log.Information($"Branch '{localBranch.FriendlyName}' pushed successfully to remote with URL '{url}'");
     }
 
 
-    private static async Task<JsonDocument?> ExecuteGitHubApiCallAsync(string apiUrl, string? githubToken = null,
-        CancellationToken ct = default)
+    private static async Task<JsonDocument?> ExecuteGitHubApiCallAsync(string apiUrl, string? githubToken = null, CancellationToken ct = default)
     {
         using HttpClient client = new();
         client.DefaultRequestHeaders.UserAgent.ParseAdd("PackForgeApp");
@@ -323,5 +364,4 @@ public static partial class GitService
 
     [GeneratedRegex(@"^https?:\/\/github\.com\/(?<owner>[^\/]+)\/(?<repo>[^\/]+)(?:\/tree\/(?<branch>[^\/\s]+))?", RegexOptions.IgnoreCase)]
     private static partial Regex GitHubRepoUrl();
-
 }

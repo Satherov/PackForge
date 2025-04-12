@@ -28,13 +28,7 @@ public static class CurseService
     /// <param name="ct">CancellationToken used when the process is stopped by the user</param>
     /// <exception cref="ArgumentException">If you somehow manage to input an invalid modloader</exception>
     /// <returns>Project ID : File ID</returns>
-    public static async Task<(int, int)?> FetchProjectData(
-        string url,
-        string[] folders,
-        string minecraftVersion,
-        string loaderType,
-        string apiKey,
-        CancellationToken ct)
+    public static async Task<(int, int)?> FetchProjectData(string url, string[] folders, string minecraftVersion, string loaderType, string apiKey, CancellationToken ct)
     {
         int loader = loaderType switch
         {
@@ -43,17 +37,12 @@ public static class CurseService
             _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
 
-        (int projectId, List<FileDetail> files) project =
-            await GetProjectIdAndFilesAsync(url, minecraftVersion, loader, apiKey, ct);
+        (int projectId, List<FileDetail> files) project = await GetProjectIdAndFilesAsync(url, minecraftVersion, loader, apiKey, ct);
         int? projectFile = await GetFileIdByFileNameAsync(project.files, folders, ct);
         return projectFile == null ? null : (project.projectId, projectFile.Value);
     }
 
-    private static async Task<(int projectId, List<FileDetail> files)> GetProjectIdAndFilesAsync(
-        string projectLink,
-        string mcVersion,
-        int modLoaderType,
-        string apiKey,
+    private static async Task<(int projectId, List<FileDetail> files)> GetProjectIdAndFilesAsync(string projectLink, string mcVersion, int modLoaderType, string apiKey,
         CancellationToken ct)
     {
         string slug = projectLink.TrimEnd('/').Split('/').Last();
@@ -67,14 +56,12 @@ public static class CurseService
         await using Stream searchStream = await searchResponse.Content.ReadAsStreamAsync(ct);
         JsonDocument searchData = await JsonDocument.ParseAsync(searchStream, cancellationToken: ct);
 
-        if (!searchData.RootElement.TryGetProperty("data", out JsonElement searchResults)
-            || searchResults.GetArrayLength() == 0)
+        if (!searchData.RootElement.TryGetProperty("data", out JsonElement searchResults) || searchResults.GetArrayLength() == 0)
             return (0, []);
 
         int projectId = searchResults[0].GetProperty("id").GetInt32();
 
-        string filesUrl = $"{BaseUrl}/v1/mods/{projectId}/files?gameVersion={mcVersion}" +
-                          $"&modLoaderType={modLoaderType}&pageSize=50";
+        string filesUrl = $"{BaseUrl}/v1/mods/{projectId}/files?gameVersion={mcVersion}" + $"&modLoaderType={modLoaderType}&pageSize=50";
 
         HttpRequestMessage filesRequest = new(HttpMethod.Get, filesUrl);
         filesRequest.Headers.Add("x-api-key", apiKey);
@@ -85,22 +72,18 @@ public static class CurseService
         await using Stream filesStream = await filesResponse.Content.ReadAsStreamAsync(ct);
         JsonDocument filesData = await JsonDocument.ParseAsync(filesStream, cancellationToken: ct);
 
-        if (!filesData.RootElement.TryGetProperty("data", out JsonElement filesResults)
-            || filesResults.GetArrayLength() == 0)
+        if (!filesData.RootElement.TryGetProperty("data", out JsonElement filesResults) || filesResults.GetArrayLength() == 0)
             return (projectId, []);
 
-        List<FileDetail> filesList = await Task.Run(() => filesResults.EnumerateArray()
-            .Select(file => new FileDetail(
-                file.GetProperty("id").GetInt32(),
-                file.GetProperty("fileName").GetString() ?? string.Empty
-            ))
-            .ToList(), ct);
+        List<FileDetail> filesList =
+            await Task.Run(
+                () => filesResults.EnumerateArray().Select(file => new FileDetail(file.GetProperty("id").GetInt32(), file.GetProperty("fileName").GetString() ?? string.Empty))
+                    .ToList(), ct);
 
         return (projectId, filesList);
     }
 
-    private static async Task<int?> GetFileIdByFileNameAsync(List<FileDetail> files, string[] folders,
-        CancellationToken ct)
+    private static async Task<int?> GetFileIdByFileNameAsync(List<FileDetail> files, string[] folders, CancellationToken ct)
     {
         ConcurrentBag<string> folderFileNames = [];
 

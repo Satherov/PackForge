@@ -30,10 +30,7 @@ public static partial class MavenService
             };
 
             string xmlContent = await HttpClient.GetStringAsync(metadataUrl + "maven-metadata.xml");
-            List<string> versionMatches = XDocument.Parse(xmlContent)
-                .Descendants("version")
-                .Select(e => e.Value)
-                .ToList();
+            List<string> versionMatches = XDocument.Parse(xmlContent).Descendants("version").Select(e => e.Value).ToList();
 
             if (loaderType.Equals("NeoForge"))
             {
@@ -83,9 +80,7 @@ public static partial class MavenService
 
     public static async Task DownloadLoader(string? loaderType, string? loaderVersion, string? savePath)
     {
-        if (Validator.IsNullOrWhiteSpace(loaderType) ||
-            Validator.IsNullOrWhiteSpace(loaderVersion) ||
-            !Validator.DirectoryExists(savePath)) return;
+        if (Validator.IsNullOrWhiteSpace(loaderType) || Validator.IsNullOrWhiteSpace(loaderVersion) || !Validator.DirectoryExists(savePath)) return;
 
         string loader = Join("-", loaderType!, loaderVersion);
 

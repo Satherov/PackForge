@@ -46,26 +46,22 @@ public static class ChangelogGenerator
     private static readonly string OldExportDir = Path.Combine(ChangelogPath, "export-old");
     private static readonly string NewExportDir = Path.Combine(ChangelogPath, "export-new");
 
-    public static async Task GenerateFullChangelogAsync(string changelogPath, string exportSourcePath, string version,
-        CancellationToken ct = default)
-    { 
+    public static async Task GenerateFullChangelogAsync(string changelogPath, string exportSourcePath, string version, CancellationToken ct = default)
+    {
         if (Validator.DirectoryEmpty(exportSourcePath)) return;
-        
+
         if (!Validator.DirectoryExists(OldExportDir))
         {
-            Log.Warning("Old export directory does not exist, if this is your first time running the generator, do another kubejs export and then run it again"); 
+            Log.Warning("Old export directory does not exist, if this is your first time running the generator, do another kubejs export and then run it again");
             await FileHelper.CopyFilesAsync(exportSourcePath, OldExportDir, null, ct);
             return;
         }
 
-        if (Validator.DirectoryExists(NewExportDir, LogEventLevel.Debug))
-        {
-            Directory.Delete(NewExportDir, true);
-        }
-        
+        if (Validator.DirectoryExists(NewExportDir, LogEventLevel.Debug)) Directory.Delete(NewExportDir, true);
+
         Log.Information("Collecting new export files");
         await FileHelper.CopyFilesAsync(exportSourcePath, NewExportDir, null, ct);
-        
+
         Stopwatch stopwatch = Stopwatch.StartNew();
         Log.Information("Starting changelog generation");
 
@@ -81,15 +77,15 @@ public static class ChangelogGenerator
         AppendModsSection(sb, modsDiff);
 
         Log.Debug("Collecting files");
-        Task<Dictionary<string, string>> oldTask = Task.Run(() =>
-            Directory.EnumerateFiles(OldExportDir, "*.json", SearchOption.AllDirectories)
-                .Where(f => Path.GetRelativePath(OldExportDir, f).Contains(Path.DirectorySeparatorChar))
-                .ToDictionary(f => Path.GetRelativePath(OldExportDir, f), f => f), ct);
+        Task<Dictionary<string, string>> oldTask =
+            Task.Run(
+                () => Directory.EnumerateFiles(OldExportDir, "*.json", SearchOption.AllDirectories)
+                    .Where(f => Path.GetRelativePath(OldExportDir, f).Contains(Path.DirectorySeparatorChar)).ToDictionary(f => Path.GetRelativePath(OldExportDir, f), f => f), ct);
 
-        Task<Dictionary<string, string>> newTask = Task.Run(() =>
-            Directory.EnumerateFiles(NewExportDir, "*.json", SearchOption.AllDirectories)
-                .Where(f => Path.GetRelativePath(NewExportDir, f).Contains(Path.DirectorySeparatorChar))
-                .ToDictionary(f => Path.GetRelativePath(NewExportDir, f), f => f), ct);
+        Task<Dictionary<string, string>> newTask =
+            Task.Run(
+                () => Directory.EnumerateFiles(NewExportDir, "*.json", SearchOption.AllDirectories)
+                    .Where(f => Path.GetRelativePath(NewExportDir, f).Contains(Path.DirectorySeparatorChar)).ToDictionary(f => Path.GetRelativePath(NewExportDir, f), f => f), ct);
 
         await Task.WhenAll(oldTask, newTask);
 
@@ -103,16 +99,14 @@ public static class ChangelogGenerator
 
             foreach (FileChangedType changeType in Enum.GetValues<FileChangedType>())
             {
-                List<FileEntry> group = entries.Where(e => e.FileChangedType == changeType).OrderBy(e => e.RelativePath)
-                    .ToList();
+                List<FileEntry> group = entries.Where(e => e.FileChangedType == changeType).OrderBy(e => e.RelativePath).ToList();
                 if (group.Count == 0) continue;
 
                 sb.AppendLine("<details>");
                 sb.AppendLine($"<summary>{changeType} ({group.Count})</summary>");
                 sb.AppendLine("<blockquote>\n");
 
-                foreach (string entryText in group.Select(entry => BuildEntry(entry, section))
-                             .Where(entryText => !string.IsNullOrEmpty(entryText))) sb.AppendLine(entryText);
+                foreach (string entryText in group.Select(entry => BuildEntry(entry, section)).Where(entryText => !string.IsNullOrEmpty(entryText))) sb.AppendLine(entryText);
 
                 sb.AppendLine("</blockquote>");
                 sb.AppendLine("</details>\n");
@@ -121,7 +115,7 @@ public static class ChangelogGenerator
 
         await File.WriteAllTextAsync(Path.Combine(changelogPath, $"CHANGELOG-{version}.md"), sb.ToString(), ct);
         Log.Information($"Changelog generated successfully after {stopwatch.ElapsedMilliseconds}ms");
-        
+
         Directory.Delete(OldExportDir, true);
         Directory.Move(NewExportDir, OldExportDir);
     }
@@ -133,12 +127,8 @@ public static class ChangelogGenerator
 
         if (!Validator.FileExists(oldModsPath) || !Validator.FileExists(newModsPath)) return [];
 
-        List<Dictionary<string, string>> oldMods =
-            JsonSerializer.Deserialize<List<Dictionary<string, string>>>(
-                await File.ReadAllTextAsync(oldModsPath, ct)) ?? [];
-        List<Dictionary<string, string>> newMods =
-            JsonSerializer.Deserialize<List<Dictionary<string, string>>>(
-                await File.ReadAllTextAsync(newModsPath, ct)) ?? [];
+        List<Dictionary<string, string>> oldMods = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(await File.ReadAllTextAsync(oldModsPath, ct)) ?? [];
+        List<Dictionary<string, string>> newMods = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(await File.ReadAllTextAsync(newModsPath, ct)) ?? [];
 
         Dictionary<string, Dictionary<string, string>> oldDict = oldMods.ToDictionary(m => m["id"]);
         Dictionary<string, Dictionary<string, string>> newDict = newMods.ToDictionary(m => m["id"]);
@@ -151,9 +141,7 @@ public static class ChangelogGenerator
             Dictionary<string, string>? newMod = newDict.GetValueOrDefault(id);
             string name = newMod?["name"] ?? oldMod?["name"] ?? id;
 
-            return new ModEntry(name,
-                newMod?.GetValueOrDefault("version") ?? string.Empty,
-                oldMod?.GetValueOrDefault("version") ?? string.Empty);
+            return new ModEntry(name, newMod?.GetValueOrDefault("version") ?? string.Empty, oldMod?.GetValueOrDefault("version") ?? string.Empty);
         }).ToList();
     }
 
@@ -161,9 +149,7 @@ public static class ChangelogGenerator
     {
         List<ModEntry> added = modsDiff.Where(e => string.IsNullOrEmpty(e.OldVersion)).ToList();
         List<ModEntry> removed = modsDiff.Where(e => string.IsNullOrEmpty(e.NewVersion)).ToList();
-        List<ModEntry> changed = modsDiff.Where(e =>
-            !string.IsNullOrEmpty(e.OldVersion) && !string.IsNullOrEmpty(e.NewVersion) &&
-            e.OldVersion != e.NewVersion).ToList();
+        List<ModEntry> changed = modsDiff.Where(e => !string.IsNullOrEmpty(e.OldVersion) && !string.IsNullOrEmpty(e.NewVersion) && e.OldVersion != e.NewVersion).ToList();
 
         sb.AppendLine("## 🛠️ Mods\n");
         sb.AppendLine($"<details open>\n<summary>Added ({added.Count})</summary>");
@@ -179,8 +165,7 @@ public static class ChangelogGenerator
         sb.AppendLine("</details>\n");
     }
 
-    private static async Task<List<FileEntry>> GetFolderDiffAsync(Dictionary<string, string> oldFiles,
-        Dictionary<string, string> newFiles, CancellationToken ct = default)
+    private static async Task<List<FileEntry>> GetFolderDiffAsync(Dictionary<string, string> oldFiles, Dictionary<string, string> newFiles, CancellationToken ct = default)
     {
         HashSet<string> allKeys = new(oldFiles.Keys);
         allKeys.UnionWith(newFiles.Keys);
@@ -194,44 +179,41 @@ public static class ChangelogGenerator
         int removed = 0;
         int changed = 0;
 
-        await Parallel.ForEachAsync(allKeys,
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
-            async (key, token) =>
+        await Parallel.ForEachAsync(allKeys, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct }, async (key, token) =>
+        {
+            bool oldExists = oldFiles.TryGetValue(key, out string? oldPath);
+            bool newExists = newFiles.TryGetValue(key, out string? newPath);
+
+            switch (oldExists)
             {
-                bool oldExists = oldFiles.TryGetValue(key, out string? oldPath);
-                bool newExists = newFiles.TryGetValue(key, out string? newPath);
-
-                switch (oldExists)
+                case true when newExists:
                 {
-                    case true when newExists:
-                    {
-                        string oldFile = Path.Combine(OldExportDir, oldPath!);
-                        string newFile = Path.Combine(NewExportDir, newPath!);
+                    string oldFile = Path.Combine(OldExportDir, oldPath!);
+                    string newFile = Path.Combine(NewExportDir, newPath!);
 
-                        if (!await FilesEqualAsync(oldFile, newFile, token))
-                        {
-                            diffs.Add(new FileEntry(key, FileChangedType.Changed));
-                            Interlocked.Increment(ref changed);
-                        }
-                    }
-                        break;
-                    case true:
+                    if (!await FilesEqualAsync(oldFile, newFile, token))
                     {
-                        diffs.Add(new FileEntry(key, FileChangedType.Removed));
-                        Interlocked.Increment(ref removed);
+                        diffs.Add(new FileEntry(key, FileChangedType.Changed));
+                        Interlocked.Increment(ref changed);
                     }
-                        break;
-                    default:
-                    {
-                        diffs.Add(new FileEntry(key, FileChangedType.Added));
-                        Interlocked.Increment(ref added);
-                    }
-                        break;
                 }
-            });
+                    break;
+                case true:
+                {
+                    diffs.Add(new FileEntry(key, FileChangedType.Removed));
+                    Interlocked.Increment(ref removed);
+                }
+                    break;
+                default:
+                {
+                    diffs.Add(new FileEntry(key, FileChangedType.Added));
+                    Interlocked.Increment(ref added);
+                }
+                    break;
+            }
+        });
 
-        Log.Information(
-            $"Found {added} added, {changed} changed, {removed} removed files in {stopwatch.ElapsedMilliseconds}ms");
+        Log.Information($"Found {added} added, {changed} changed, {removed} removed files in {stopwatch.ElapsedMilliseconds}ms");
         return diffs.ToList();
     }
 
@@ -253,8 +235,7 @@ public static class ChangelogGenerator
             {
                 bytesRead = await fs1.ReadAsync(buffer1.AsMemory(0, bufferSize), ct);
                 int bytesRead2 = await fs2.ReadAsync(buffer2.AsMemory(0, bufferSize), ct);
-                if (bytesRead != bytesRead2 ||
-                    !buffer1.AsSpan(0, bytesRead).SequenceEqual(buffer2.AsSpan(0, bytesRead2)))
+                if (bytesRead != bytesRead2 || !buffer1.AsSpan(0, bytesRead).SequenceEqual(buffer2.AsSpan(0, bytesRead2)))
                     return false;
             } while (bytesRead > 0);
         }
@@ -315,12 +296,10 @@ public static class ChangelogGenerator
 
     private static string BuildEntry(FileEntry entry, SectionType section)
     {
-        string path = string.Join(Path.DirectorySeparatorChar.ToString(),
-            entry.RelativePath.Split(Path.DirectorySeparatorChar).Skip(1));
+        string path = string.Join(Path.DirectorySeparatorChar.ToString(), entry.RelativePath.Split(Path.DirectorySeparatorChar).Skip(1));
         StringBuilder sb = new();
         sb.AppendLine("<details>");
-        sb.AppendLine(
-            $"<summary>{(section == SectionType.Unknown ? entry.PrettyPath ?? entry.RelativePath : path)}</summary>\n");
+        sb.AppendLine($"<summary>{(section == SectionType.Unknown ? entry.PrettyPath ?? entry.RelativePath : path)}</summary>\n");
         sb.AppendLine("```diff");
 
         string oldPath = Path.Combine(OldExportDir, entry.RelativePath);
@@ -414,10 +393,7 @@ public static class ChangelogGenerator
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
                 return json;
 
-            List<string> keys = doc.RootElement.EnumerateObject()
-                .Select(p => p.Name)
-                .OrderBy(k => k)
-                .ToList();
+            List<string> keys = doc.RootElement.EnumerateObject().Select(p => p.Name).OrderBy(k => k).ToList();
 
             return string.Join('\n', keys);
         }

@@ -12,15 +12,7 @@ using Tomlyn.Model;
 
 namespace PackForge.Core.Util;
 
-public record ModInfo(
-    string FilePath,
-    string Name,
-    string ModId,
-    string Version,
-    List<string> Authors,
-    bool DataOnly,
-    bool McreatorFragments,
-    List<ModInfo> JarInJars)
+public record ModInfo(string FilePath, string Name, string ModId, string Version, List<string> Authors, bool DataOnly, bool McreatorFragments, List<ModInfo> JarInJars)
 {
     public string FilePath { get; set; } = FilePath;
     public string Name { get; set; } = Name;
@@ -103,14 +95,19 @@ public static class JarHelper
         ModInfo info = ModInfo.NoData(jarFilePath);
 
         ZipArchiveEntry? tomlEntry = archive.Entries.FirstOrDefault(entry =>
-            entry.FullName.Contains("META-INF", StringComparison.OrdinalIgnoreCase) &&
-            entry.FullName.EndsWith("mods.toml", StringComparison.OrdinalIgnoreCase));
+            entry.FullName.Contains("META-INF", StringComparison.OrdinalIgnoreCase) && entry.FullName.EndsWith("mods.toml", StringComparison.OrdinalIgnoreCase));
 
         if (tomlEntry != null)
         {
             await using Stream stream = tomlEntry.Open();
             using StreamReader reader = new(stream);
-            string content = await reader.ReadToEndAsync(ct);
+            StringBuilder contentBuilder = new();
+            while (await reader.ReadLineAsync(ct) is { } line)
+            {
+                contentBuilder.AppendLine(line);
+            }
+            string content = contentBuilder.ToString();
+            
             if (!string.IsNullOrWhiteSpace(content))
             {
                 TomlTable tomlModel = Toml.Parse(content).ToModel();
@@ -129,26 +126,16 @@ public static class JarHelper
                     modEntry.TryGetValue("authors", out object? authors);
                     info.Authors = authors switch
                     {
-                        string authorString => authorString
-                            .Split([' ', ','], StringSplitOptions.RemoveEmptyEntries)
-                            .ToList(),
-                        TomlTableArray authorArray => authorArray
-                            .OfType<object?>()
-                            .Select(a => a?.ToString())
-                            .Where(s => !string.IsNullOrWhiteSpace(s))
-                            .ToList()!,
+                        string authorString => authorString.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries).ToList(),
+                        TomlTableArray authorArray => authorArray.OfType<object?>().Select(a => a?.ToString()).Where(s => !string.IsNullOrWhiteSpace(s)).ToList()!,
                         _ => ["empty / parse failed"]
                     };
-
                 }
             }
         }
 
-        List<ZipArchiveEntry> jarInJarEntries = archive.Entries
-            .Where(entry =>
-                entry.FullName.Contains("META-INF/jarjar", StringComparison.OrdinalIgnoreCase) &&
-                entry.FullName.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        List<ZipArchiveEntry> jarInJarEntries = archive.Entries.Where(entry =>
+            entry.FullName.Contains("META-INF/jarjar", StringComparison.OrdinalIgnoreCase) && entry.FullName.EndsWith(".jar", StringComparison.OrdinalIgnoreCase)).ToList();
 
         foreach (ZipArchiveEntry jarEntry in jarInJarEntries)
         {
@@ -158,11 +145,8 @@ public static class JarHelper
             info.JarInJars.Add(nestedInfo);
         }
 
-        List<ZipArchiveEntry> otherEntries = archive.Entries
-            .Where(entry =>
-                !entry.FullName.StartsWith("assets", StringComparison.OrdinalIgnoreCase) &&
-                !entry.FullName.StartsWith("data", StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        List<ZipArchiveEntry> otherEntries = archive.Entries.Where(entry =>
+            !entry.FullName.StartsWith("assets", StringComparison.OrdinalIgnoreCase) && !entry.FullName.StartsWith("data", StringComparison.OrdinalIgnoreCase)).ToList();
 
         bool classFound = info.JarInJars.Count > 0;
         bool mcreatorFound = false;
@@ -177,9 +161,8 @@ public static class JarHelper
 
             string[] segments = file.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
 
-            if (!mcreatorFound &&
-                (segments.Any(s => s.Equals("mcreator", StringComparison.OrdinalIgnoreCase)) ||
-                 segments.Any(s => s.Equals("procedures", StringComparison.OrdinalIgnoreCase))))
+            if (!mcreatorFound && (segments.Any(s => s.Equals("mcreator", StringComparison.OrdinalIgnoreCase)) ||
+                                   segments.Any(s => s.Equals("procedures", StringComparison.OrdinalIgnoreCase))))
             {
                 mcreatorFound = true;
                 info.McreatorFragments = true;

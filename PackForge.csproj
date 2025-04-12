@@ -4,7 +4,6 @@
         <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-        <ApplicationManifest>app.manifest</ApplicationManifest>
         <ApplicationIcon>Assets/logo-dark.ico</ApplicationIcon>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     </PropertyGroup>
@@ -58,6 +57,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="obj\Debug\net9.0\Avalonia\" />
+        <Folder Include="obj\Debug\net9.0\Avalonia\"/>
     </ItemGroup>
 </Project>

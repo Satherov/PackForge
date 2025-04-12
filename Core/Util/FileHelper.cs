@@ -26,12 +26,9 @@ public record Rule(string FilePath, FileAttributes Attributes);
 
 public static class FileHelper
 {
-    public static async Task<string> PrepareRootFolderAsync(string? destinationFolder, string? folderName,
-        string? version)
+    public static async Task<string> PrepareRootFolderAsync(string? destinationFolder, string? folderName, string? version)
     {
-        if (Validator.IsNullOrWhiteSpace(destinationFolder) ||
-            Validator.IsNullOrWhiteSpace(folderName) ||
-            Validator.IsNullOrWhiteSpace(version)) return string.Empty;
+        if (Validator.IsNullOrWhiteSpace(destinationFolder) || Validator.IsNullOrWhiteSpace(folderName) || Validator.IsNullOrWhiteSpace(version)) return string.Empty;
 
         try
         {
@@ -100,14 +97,11 @@ public static class FileHelper
         {
             Window? window = desktopLifetime.MainWindow;
             if (window == null) throw new SystemException();
-            IReadOnlyList<IStorageFolder> folderResult = await window.StorageProvider.OpenFolderPickerAsync(
-                new FolderPickerOpenOptions
-                {
-                    Title = "Select a folder",
-                    SuggestedStartLocation = startLocation != null
-                        ? await window.StorageProvider.TryGetFolderFromPathAsync(startLocation)
-                        : null
-                });
+            IReadOnlyList<IStorageFolder> folderResult = await window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Select a folder",
+                SuggestedStartLocation = startLocation != null ? await window.StorageProvider.TryGetFolderFromPathAsync(startLocation) : null
+            });
             if (focusWindow != null) await WindowHelper.FocusWindow(() => focusWindow);
             return !folderResult.Any() ? string.Empty : folderResult.Single().Path.LocalPath;
         }
@@ -120,22 +114,22 @@ public static class FileHelper
     public static async Task ApplyFilters(string? sourceDir, bool client, CancellationToken ct = default)
     {
         if (!Validator.DirectoryExists(sourceDir)) return;
-        
+
         Stopwatch stopwatch = Stopwatch.StartNew();
         Log.Information($"Applying filters to {sourceDir}");
 
         List<ModInfo> allData = await JarHelper.GetAllModData(sourceDir, ct);
         foreach (ModInfo mod in allData)
         {
-            
             if (string.IsNullOrWhiteSpace(mod.ModId) && mod.JarInJars.Count > 0)
             {
                 Log.Debug($"Mod {Path.GetFileName(mod.FilePath)} only contains JarInJars");
                 foreach (ModInfo jarMod in mod.JarInJars) ApplyResults(jarMod, client, true, mod);
                 continue;
             }
+
             if (string.IsNullOrWhiteSpace(mod.ModId)) continue;
-            
+
             Log.Debug($"{mod}");
             ApplyResults(mod, client);
         }
@@ -157,13 +151,11 @@ public static class FileHelper
         switch (client)
         {
             case true when DataManager.ExcludedClient.Contains(mod.ModId):
-                Log.Warning(
-                    $"{prefix}'{Path.GetFileName(parent.FilePath)}' containing {mod.ModId} is excluded on the client");
+                Log.Warning($"{prefix}'{Path.GetFileName(parent.FilePath)}' containing {mod.ModId} is excluded on the client");
                 File.Delete(parent.FilePath);
                 break;
             case false when DataManager.ExcludedServer.Contains(mod.ModId):
-                Log.Warning(
-                    $"{prefix}'{Path.GetFileName(parent.FilePath)}' containing {mod.ModId} is excluded on the server");
+                Log.Warning($"{prefix}'{Path.GetFileName(parent.FilePath)}' containing {mod.ModId} is excluded on the server");
                 File.Delete(parent.FilePath);
                 break;
         }
@@ -175,22 +167,16 @@ public static class FileHelper
         }
 
         if (mod.DataOnly && DataManager.FlagDataOnly)
-            Log.Warning(
-                $"{prefix}'{Path.GetFileName(parent.FilePath)}' contains only data");
+            Log.Warning($"{prefix}'{Path.GetFileName(parent.FilePath)}' contains only data");
 
         if (mod.McreatorFragments && DataManager.FlagMcreator)
-            Log.Warning(
-                $"{prefix}'{Path.GetFileName(parent.FilePath)}' contains MCreator fragments");
-        
+            Log.Warning($"{prefix}'{Path.GetFileName(parent.FilePath)}' contains MCreator fragments");
+
         if (mod.JarInJars.Count == 0) return;
         foreach (ModInfo jarMod in mod.JarInJars) ApplyResults(jarMod, client, true, mod);
     }
 
-    public static async Task CopyFilesAsync(
-        string sourceDir,
-        string targetDir,
-        RuleSet? ruleSet,
-        CancellationToken ct)
+    public static async Task CopyFilesAsync(string sourceDir, string targetDir, RuleSet? ruleSet, CancellationToken ct)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         if (!Validator.DirectoryExists(sourceDir)) return;
@@ -232,11 +218,9 @@ public static class FileHelper
                 if ((File.GetAttributes(entry) & FileAttributes.Directory) != 0)
                 {
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                        await CopyFolderRobocopyAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)),
-                            fileFilter, ct);
+                        await CopyFolderRobocopyAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)), fileFilter, ct);
                     else
-                        await CopyFolderRecursiveAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)),
-                            fileFilter, semaphore, ct);
+                        await CopyFolderRecursiveAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)), fileFilter, semaphore, ct);
                 }
                 else
                 {
@@ -251,8 +235,7 @@ public static class FileHelper
         Log.Debug($"Finished copying files in {stopwatch.ElapsedMilliseconds}ms");
     }
 
-    private static async Task CopyFolderRobocopyAsync(string sourcePath, string destPath, List<string> fileFilter,
-        CancellationToken ct)
+    private static async Task CopyFolderRobocopyAsync(string sourcePath, string destPath, List<string> fileFilter, CancellationToken ct)
     {
         if (!Directory.Exists(sourcePath)) return;
         Directory.CreateDirectory(destPath);
@@ -275,14 +258,12 @@ public static class FileHelper
         }
     }
 
-    private static async Task CopyFolderRecursiveAsync(string sourcePath, string destPath, List<string> fileFilter,
-        SemaphoreSlim semaphore, CancellationToken ct)
+    private static async Task CopyFolderRecursiveAsync(string sourcePath, string destPath, List<string> fileFilter, SemaphoreSlim semaphore, CancellationToken ct)
     {
         if (!Directory.Exists(sourcePath)) return;
         Directory.CreateDirectory(destPath);
         string[] files = Directory.GetFiles(sourcePath);
-        List<Task> fileTasks = files
-            .Select(filePath => CopySingleFileAsync(filePath, destPath, fileFilter, semaphore, ct)).ToList();
+        List<Task> fileTasks = files.Select(filePath => CopySingleFileAsync(filePath, destPath, fileFilter, semaphore, ct)).ToList();
         await Task.WhenAll(fileTasks);
         string[] subDirs = Directory.GetDirectories(sourcePath);
         List<Task> subDirTasks = subDirs.Select(subDir =>
@@ -294,8 +275,7 @@ public static class FileHelper
         await Task.WhenAll(subDirTasks);
     }
 
-    private static async Task CopySingleFileAsync(string sourceFile, string destFolder, List<string> fileFilter,
-        SemaphoreSlim semaphore, CancellationToken ct)
+    private static async Task CopySingleFileAsync(string sourceFile, string destFolder, List<string> fileFilter, SemaphoreSlim semaphore, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         string fileName = Path.GetFileName(sourceFile);
@@ -316,10 +296,8 @@ public static class FileHelper
         try
         {
             const int bufferSize = 1048576;
-            await using FileStream sourceStream =
-                new(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, true);
-            await using FileStream destStream = new(destFile, FileMode.Create, FileAccess.Write, FileShare.None,
-                bufferSize, true);
+            await using FileStream sourceStream = new(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, true);
+            await using FileStream destStream = new(destFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, true);
             await sourceStream.CopyToAsync(destStream, bufferSize, ct);
         }
         finally
@@ -406,13 +384,8 @@ public static class FileHelper
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 DirectorySecurity security = directoryInfo.GetAccessControl();
-                security.AddAccessRule(new FileSystemAccessRule(
-                    WindowsIdentity.GetCurrent().Name,
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow
-                ));
+                security.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().Name, FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
                 directoryInfo.SetAccessControl(security);
             }
             else
@@ -431,10 +404,7 @@ public static class FileHelper
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     FileSecurity fileSecurity = file.GetAccessControl();
-                    fileSecurity.AddAccessRule(new FileSystemAccessRule(
-                        WindowsIdentity.GetCurrent().Name,
-                        FileSystemRights.FullControl,
-                        AccessControlType.Allow));
+                    fileSecurity.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().Name, FileSystemRights.FullControl, AccessControlType.Allow));
                     file.SetAccessControl(fileSecurity);
                 }
                 else

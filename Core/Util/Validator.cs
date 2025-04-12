@@ -13,72 +13,43 @@ namespace PackForge.Core.Util;
 
 public static partial class Validator
 {
-    public static bool IsTypeOf<T>(
-        [NotNullWhen(false)] object? variable,
-        LogEventLevel? logLevel = LogEventLevel.Warning,
-        [CallerArgumentExpression("variable")] string variableName = "",
-        [CallerFilePath] string file = "",
-        [CallerLineNumber] int line = 0,
-        [CallerMemberName] string member = "")
+    public static bool IsTypeOf<T>([NotNullWhen(false)] object? variable, LogEventLevel? logLevel = LogEventLevel.Warning,
+        [CallerArgumentExpression("variable")] string variableName = "", [CallerFilePath] string file = "", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "")
     {
         if (variable is T) return true;
-        LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} is not of type {typeof(T).Name}",
-            logLevel);
+        LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} is not of type {typeof(T).Name}", logLevel);
         return false;
     }
 
-    public static bool DirectoryEmpty(
-        [NotNullWhen(false)] string? value,
-        LogEventLevel? logLevel = LogEventLevel.Warning,
-        [CallerArgumentExpression("value")] string variableName = "",
-        [CallerFilePath] string file = "",
-        [CallerLineNumber] int line = 0,
-        [CallerMemberName] string member = "")
+    public static bool DirectoryEmpty([NotNullWhen(false)] string? value, LogEventLevel? logLevel = LogEventLevel.Warning,
+        [CallerArgumentExpression("value")] string variableName = "", [CallerFilePath] string file = "", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "")
     {
-        if (DirectoryExists(value, logLevel, variableName, file, line, member)
-            && Directory.EnumerateFileSystemEntries(value).Any()) return false;
+        if (DirectoryExists(value, logLevel, variableName, file, line, member) && Directory.EnumerateFileSystemEntries(value).Any()) return false;
 
         LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} is empty", logLevel);
         return true;
     }
 
-    public static bool DirectoryExists(
-        [NotNullWhen(true)] string? value,
-        LogEventLevel? logLevel = LogEventLevel.Warning,
-        [CallerArgumentExpression("value")] string variableName = "",
-        [CallerFilePath] string file = "",
-        [CallerLineNumber] int line = 0,
-        [CallerMemberName] string member = "")
+    public static bool DirectoryExists([NotNullWhen(true)] string? value, LogEventLevel? logLevel = LogEventLevel.Warning,
+        [CallerArgumentExpression("value")] string variableName = "", [CallerFilePath] string file = "", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "")
     {
         if (IsNullOrWhiteSpace(value, logLevel, variableName, file, line, member)) return false;
         if (Directory.Exists(value)) return true;
-        LogLevelMessage(
-            $"{FormatVariableName(variableName, file, line, member)} not found at {Path.GetFullPath(value)}", logLevel);
+        LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} not found at {Path.GetFullPath(value)}", logLevel);
         return false;
     }
 
-    public static bool FileExists(
-        [NotNullWhen(true)] string? value,
-        LogEventLevel? logLevel = LogEventLevel.Warning,
-        [CallerArgumentExpression("value")] string variableName = "",
-        [CallerFilePath] string file = "",
-        [CallerLineNumber] int line = 0,
-        [CallerMemberName] string member = "")
+    public static bool FileExists([NotNullWhen(true)] string? value, LogEventLevel? logLevel = LogEventLevel.Warning, [CallerArgumentExpression("value")] string variableName = "",
+        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "")
     {
         if (IsNullOrWhiteSpace(value, logLevel, variableName, file, line, member)) return false;
         if (File.Exists(value)) return true;
-        LogLevelMessage(
-            $"{FormatVariableName(variableName, file, line, member)} not found at {Path.GetFullPath(value)}", logLevel);
+        LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} not found at {Path.GetFullPath(value)}", logLevel);
         return false;
     }
 
-    public static bool IsNullOrWhiteSpace(
-        [NotNullWhen(false)] string? value,
-        LogEventLevel? logLevel = LogEventLevel.Warning,
-        [CallerArgumentExpression("value")] string variableName = "",
-        [CallerFilePath] string file = "",
-        [CallerLineNumber] int line = 0,
-        [CallerMemberName] string member = "")
+    public static bool IsNullOrWhiteSpace([NotNullWhen(false)] string? value, LogEventLevel? logLevel = LogEventLevel.Warning,
+        [CallerArgumentExpression("value")] string variableName = "", [CallerFilePath] string file = "", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "")
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -89,13 +60,8 @@ public static partial class Validator
         return false;
     }
 
-    public static bool IsNullOrEmpty<T>(
-        [NotNullWhen(false)] T? value,
-        LogEventLevel? logLevel = LogEventLevel.Warning,
-        [CallerArgumentExpression("value")] string variableName = "",
-        [CallerFilePath] string file = "",
-        [CallerLineNumber] int line = 0,
-        [CallerMemberName] string member = "")
+    public static bool IsNullOrEmpty<T>([NotNullWhen(false)] T? value, LogEventLevel? logLevel = LogEventLevel.Warning,
+        [CallerArgumentExpression("value")] string variableName = "", [CallerFilePath] string file = "", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "")
     {
         if (IsNull(value, logLevel, variableName, file, line, member))
             return true;
@@ -116,13 +82,8 @@ public static partial class Validator
         return false;
     }
 
-    public static bool IsNull<T>(
-        [NotNullWhen(false)] T? value,
-        LogEventLevel? logLevel = LogEventLevel.Warning,
-        [CallerArgumentExpression("value")] string variableName = "",
-        [CallerFilePath] string file = "",
-        [CallerLineNumber] int line = 0,
-        [CallerMemberName] string member = "")
+    public static bool IsNull<T>([NotNullWhen(false)] T? value, LogEventLevel? logLevel = LogEventLevel.Warning, [CallerArgumentExpression("value")] string variableName = "",
+        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "")
     {
         if (value is null)
         {

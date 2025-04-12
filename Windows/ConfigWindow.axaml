@@ -23,14 +23,14 @@
         <ScrollViewer Name="ConfigScrollViewer">
             <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
                 <StackPanel>
-                    
+
                     <!-- Crash Assistant -->
                     <CheckBox VerticalAlignment="Top"
                               Name="FlagMCreatorCheckBox"
                               IsChecked="{Binding FlagMcreator, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               Content="Flag MCreator"
                               ToolTip.Tip="Should MCreator Mods be flagged" />
-                    
+
                     <!-- Crash Assistant -->
                     <CheckBox VerticalAlignment="Top"
                               Name="FlagDataOnlyCheckBox"
