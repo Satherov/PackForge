@@ -1,0 +1,47 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PackForge.ViewModels"
+        x:Class="PackForge.Windows.OverwriteWindow"
+        x:DataType="vm:OverwriteWindowViewModel"
+        Icon="/Assets/logo-dark.ico"
+        Title="Overwrite Window"
+        Background="#1E1E2E"
+        CanResize="False"
+        SizeToContent="WidthAndHeight">
+
+    <StackPanel Margin="10" Width="1000">
+
+        <!-- Override Screen -->
+        <Border Background="#2A2A40" CornerRadius="10" Margin="0, 0 , 0, 10">
+            <TextBlock Margin="10" TextAlignment="Center" Text="Overwrite Window" />
+        </Border>
+
+        <!-- Client path -->
+        <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
+            <StackPanel>
+                <Grid ColumnDefinitions="5*,Auto">
+                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
+                             Name="ClientPathTextBox"
+                             Text="{Binding ClientPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="Client Override Folder"
+                             ToolTip.Tip="The target folder to overwrite. Useful if you want to update your local instance alongside the generated files" />
+                    <Button Grid.Column="1" Content="Open" Command="{Binding OpenClientFolderCommand}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Server path -->
+        <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
+            <StackPanel>
+                <Grid ColumnDefinitions="5*,Auto">
+                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
+                             Name="ServerPathTextBox"
+                             Text="{Binding ServerPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="Server Override Folder"
+                             ToolTip.Tip="The target folder to overwrite. Useful if you want to update your local instance alongside the generated files" />
+                    <Button Grid.Column="1" Content="Open" Command="{Binding OpenServerFolderCommand}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</Window>

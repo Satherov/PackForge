@@ -1,0 +1,53 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PackForge.ViewModels"
+        x:Class="PackForge.Windows.TokenWindow"
+        x:DataType="vm:TokenWindowViewModel"
+        Icon="/Assets/logo-dark.ico"
+        Title="Token Window"
+        Background="#1E1E2E"
+        CanResize="False"
+        SizeToContent="WidthAndHeight">
+
+    <StackPanel Margin="10" Width="1000">
+
+        <!-- Token Screen -->
+        <Border Background="#2A2A40" CornerRadius="10" Margin="0, 0 , 0, 10">
+            <TextBlock Margin="10" TextAlignment="Center" Text="Token Window" />
+        </Border>
+
+        <!-- GitHub Token -->
+        <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
+            <StackPanel>
+                <Grid ColumnDefinitions="5*,Auto, Auto">
+                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
+                             Name="GitHubTokenTextBox"
+                             Text="{Binding GitHubToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="GitHub Token"
+                             ToolTip.Tip="GitHub Token used for automation. Will be encrypted and stored after the first time the program is run" />
+                    <Button Grid.Column="1" Content="Encrypt" Command="{Binding EncryptGitHubTokenCommand}"
+                            ToolTip.Tip="Encrypt and stores the token" />
+                    <Button Grid.Column="2" Content="Open" Command="{Binding OpenGitHubTokenPageCommand}"
+                            ToolTip.Tip="Opens the GitHub token page" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Curseforge Token -->
+        <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
+            <StackPanel>
+                <Grid ColumnDefinitions="5*,Auto, Auto">
+                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
+                             Name="CurseForgeTokenTextBox"
+                             Text="{Binding CurseforgeToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="Curseforge API Token"
+                             ToolTip.Tip="Curseforge Token used for automation. Will be encrypted and stored after the first time the program is run" />
+                    <Button Grid.Column="1" Content="Encrypt" Command="{Binding EncryptCurseforgeTokenCommand}"
+                            ToolTip.Tip="Encrypt and stores the token" />
+                    <Button Grid.Column="2" Content="Open" Command="{Binding OpenCurseforgeTokenPageCommand}"
+                            ToolTip.Tip="Opens the Curseforge api token page" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</Window>

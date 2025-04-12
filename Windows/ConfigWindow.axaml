@@ -1,0 +1,58 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PackForge.ViewModels"
+        x:Class="PackForge.Windows.ConfigWindow"
+        x:DataType="vm:ConfigWindowViewModel"
+        Icon="/Assets/logo-dark.ico"
+        Title="Config Window"
+        Background="#1E1E2E"
+        CanResize="False"
+        SizeToContent="WidthAndHeight">
+
+    <!-- Config Selection -->
+    <StackPanel Margin="10">
+
+        <!-- Config Screen -->
+        <Border Background="#2A2A40" CornerRadius="10">
+            <TextBlock Margin="10" TextAlignment="Center">
+                Config Screen
+            </TextBlock>
+        </Border>
+
+        <!-- Content -->
+        <ScrollViewer Name="ConfigScrollViewer">
+            <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
+                <StackPanel>
+                    
+                    <!-- Crash Assistant -->
+                    <CheckBox VerticalAlignment="Top"
+                              Name="FlagMCreatorCheckBox"
+                              IsChecked="{Binding FlagMcreator, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Content="Flag MCreator"
+                              ToolTip.Tip="Should MCreator Mods be flagged" />
+                    
+                    <!-- Crash Assistant -->
+                    <CheckBox VerticalAlignment="Top"
+                              Name="FlagDataOnlyCheckBox"
+                              IsChecked="{Binding FlagDataOnly, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Content="Flag Data Only"
+                              ToolTip.Tip="Should the Crash Assistant Modlist be generated?" />
+
+                    <!-- Better Compatability Checker -->
+                    <CheckBox VerticalAlignment="Top"
+                              Name="BccConfigCheckBox"
+                              IsChecked="{Binding BccConfig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Content="Generate BCC-config"
+                              ToolTip.Tip="Should the Better Compatability Checker config be generated?" />
+
+                    <!-- Crash Assistant -->
+                    <CheckBox VerticalAlignment="Top"
+                              Name="ModListCheckBox"
+                              IsChecked="{Binding ModListConfig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Content="Generate Modlist"
+                              ToolTip.Tip="Should the Crash Assistant Modlist be generated?" />
+                </StackPanel>
+            </Border>
+        </ScrollViewer>
+    </StackPanel>
+</Window>
