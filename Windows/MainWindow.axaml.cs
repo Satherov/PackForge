@@ -1,5 +1,7 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using DynamicData.Binding;
 using PackForge.Core.Service;
@@ -15,7 +17,28 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        MainWindowViewModel.FilteredLogEntries.ObserveCollectionChanges().Subscribe(_ => { Dispatcher.UIThread.Post(() => { LogScrollViewer.ScrollToEnd(); }); });
+        MainWindowViewModel.FilteredLogEntries.ObserveCollectionChanges().Subscribe(_ =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                LogScrollViewer.ScrollToEnd();
+            });
+        });
+    }
+    
+    private const double AspectRatio = 16.0 / 9.0;
+
+    protected override void OnResized(WindowResizedEventArgs e)
+    {
+        base.OnResized(e);
+
+        double width = e.ClientSize.Width;
+        double height = width / AspectRatio;
+
+        // Update size only if the aspect ratio is off
+        if (!(Math.Abs(e.ClientSize.Height - height) > 1)) return;
+        Width = width;
+        Height = height;
     }
 
     protected override void OnClosed(EventArgs e)

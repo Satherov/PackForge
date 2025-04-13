@@ -6,173 +6,173 @@
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/logo-dark.ico"
         Title="PackForge"
-        Background="#1E1E2E"
-        MinWidth="1400" MinHeight="850">
+        Background="#1E1E2E">
 
     <Window.Resources>
         <logger:ColorFormatter x:Key="ColorFormatter" />
     </Window.Resources>
 
     <!-- Main Grid -->
-    <Grid RowDefinitions="Auto,*">
+    <Viewbox Stretch="Uniform">
+        <Grid RowDefinitions="Auto,*" Width="1600" Height="900">
+            <Grid Grid.Row="0" ColumnDefinitions="9*,2*">
+                <Border Grid.Column="0" Margin="10" CornerRadius="10" BorderThickness="1">
+                    <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto">
 
-        <Grid Grid.Row="0" ColumnDefinitions="9*,2*">
-            <Border Grid.Column="0" Margin="10" CornerRadius="10" BorderThickness="1">
-                <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto">
+                        <Grid Grid.Row="0" ColumnDefinitions="5*,Auto">
+                            <TextBox Grid.Column="0" MaxLines="1"
+                                     Name="SourceFolderTextBox"
+                                     Text="{Binding SourceFolderPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="Source Folder"
+                                     ToolTip.Tip="Source Folder to get files from" />
+                            <Button Grid.Column="1" Content="Browse" Command="{Binding OpenSourceFolderCommand}" />
+                        </Grid>
 
-                    <Grid Grid.Row="0" ColumnDefinitions="5*,Auto">
-                        <TextBox Grid.Column="0" MaxLines="1"
-                                 Name="SourceFolderTextBox"
-                                 Text="{Binding SourceFolderPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Source Folder"
-                                 ToolTip.Tip="Source Folder to get files from" />
-                        <Button Grid.Column="1" Content="Browse" Command="{Binding OpenSourceFolderCommand}" />
+                        <Grid Grid.Row="1" ColumnDefinitions="5*,Auto">
+                            <TextBox Grid.Column="0" MaxLines="1"
+                                     Name="DestinationFolderTextBox"
+                                     Text="{Binding DestinationFolderPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="Destination Folder"
+                                     ToolTip.Tip="Destination Folder to output files to" />
+                            <Button Grid.Column="1" Content="Browse" Command="{Binding OpenDestinationFolderCommand}" />
+                        </Grid>
+
+                        <Grid Grid.Row="2" ColumnDefinitions="5*,Auto">
+                            <TextBox Grid.Column="0" MaxLines="1"
+                                     Name="GitHubRepoTextBox"
+                                     Text="{Binding GitHubLink, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="GitHub Repository URL"
+                                     ToolTip.Tip="GitHub Repository to get original files from" />
+                            <Button Grid.Column="1" Content="Open" Command="{Binding OpenGitHubRepoCommand}"
+                                    ToolTip.Tip="Opens the selected repository" />
+                        </Grid>
+
+                        <Grid Grid.Row="3" ColumnDefinitions="2*,2*,3*,Auto">
+
+                            <ComboBox Grid.Column="0"
+                                      Name="MinecraftVersionComboBox"
+                                      ItemsSource="{Binding MinecraftVersionOptions, Mode=TwoWay}"
+                                      SelectedItem="{Binding MinecraftVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      MaxDropDownHeight="150"
+                                      PlaceholderText="MC Version"
+                                      ToolTip.Tip="Minecraft Version to check loader version against" />
+
+                            <ComboBox Grid.Column="1"
+                                      Name="LoaderTypeComboBox"
+                                      ItemsSource="{Binding LoaderTypeOptions, Mode=TwoWay}"
+                                      SelectedItem="{Binding LoaderType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      PlaceholderText="Loader"
+                                      ToolTip.Tip="The Modloader to use" />
+
+                            <ComboBox Grid.Column="2"
+                                      Name="LoaderVersionComboBox"
+                                      ItemsSource="{Binding LoaderVersionOptions, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      SelectedItem="{Binding LoaderVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      MaxDropDownHeight="150"
+                                      PlaceholderText="Loader Version"
+                                      ToolTip.Tip="Loader version to download" />
+                            <Button Grid.Column="3" Content="Fetch" Command="{Binding FetchLoaderVersionCommand}"
+                                    ToolTip.Tip="Automatically grabs the latest loader version" />
+                        </Grid>
+
+                        <Grid Grid.Row="4" ColumnDefinitions="6*,3*,4*,3*,4*">
+
+                            <TextBox Grid.Column="0" MaxLines="1"
+                                     Name="PackNameTextBox"
+                                     Text="{Binding ModpackName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="Modpack Name"
+                                     ToolTip.Tip="Name of the ModPack" />
+
+                            <TextBox Grid.Column="1" MaxLines="1"
+                                     Name="VersionTextBox"
+                                     Text="{Binding ModpackVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="Version"
+                                     ToolTip.Tip="Version of the ModPack" />
+
+                            <TextBox Grid.Column="2" MaxLines="1"
+                                     Name="AuthorTextBox"
+                                     Text="{Binding ModpackAuthor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="Author"
+                                     ToolTip.Tip="Author of the ModPack" />
+
+                            <TextBox Grid.Column="3" MaxLines="1"
+                                     Name="CurseforgeIdTextBox"
+                                     Text="{Binding CurseforgeId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="Curseforge ID"
+                                     ToolTip.Tip="Curseforge ID of the ModPack" />
+
+                            <TextBox Grid.Column="4" MaxLines="1"
+                                     Name="RecommendedRamTextBox"
+                                     Text="{Binding RecommendedRam, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Watermark="Recommended Ram"
+                                     ToolTip.Tip="Recommended amount of ram for the ModPack in bytes" />
+                        </Grid>
+
+                        <Grid Grid.Row="5" ColumnDefinitions="*,*,*,*,*,Auto">
+                            <Button Grid.Column="0" MinWidth="150" Content="Config Window"
+                                    Command="{Binding OpenConfigWindowCommand}" />
+                            <Button Grid.Column="1" MinWidth="150" Content="Filter Window"
+                                    Command="{Binding OpenFilterWindowCommand}" />
+                            <Button Grid.Column="2" MinWidth="150" Content="Token Window"
+                                    Command="{Binding OpenTokenWindowCommand}" />
+                            <Button Grid.Column="3" MinWidth="150" Content="Override Window"
+                                    Command="{Binding OpenOverwriteWindowCommand}" />
+                            <Button Grid.Column="4" MinWidth="150" Content="Template Folder"
+                                    Command="{Binding OpenTemplateFolderCommand}" />
+                            <Border Grid.Column="5" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
+                                    BorderBrush="#5A5A70">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleSwitch Margin="10,0,5,0" IsChecked="{Binding ShowDebugLogs, Mode=TwoWay}" />
+                                    <Border Margin="5" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
+                                            BorderBrush="#5A5A70">
+                                        <TextBlock Margin="10" TextAlignment="Center" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" Text="Show Debug" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Grid>
+                </Border>
 
-                    <Grid Grid.Row="1" ColumnDefinitions="5*,Auto">
-                        <TextBox Grid.Column="0" MaxLines="1"
-                                 Name="DestinationFolderTextBox"
-                                 Text="{Binding DestinationFolderPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Destination Folder"
-                                 ToolTip.Tip="Destination Folder to output files to" />
-                        <Button Grid.Column="1" Content="Browse" Command="{Binding OpenDestinationFolderCommand}" />
-                    </Grid>
-
-                    <Grid Grid.Row="2" ColumnDefinitions="5*,Auto">
-                        <TextBox Grid.Column="0" MaxLines="1"
-                                 Name="GitHubRepoTextBox"
-                                 Text="{Binding GitHubLink, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="GitHub Repository URL"
-                                 ToolTip.Tip="GitHub Repository to get original files from" />
-                        <Button Grid.Column="1" Content="Open" Command="{Binding OpenGitHubRepoCommand}"
-                                ToolTip.Tip="Opens the selected repository" />
-                    </Grid>
-
-                    <Grid Grid.Row="3" ColumnDefinitions="2*,2*,3*,Auto">
-
-                        <ComboBox Grid.Column="0"
-                                  Name="MinecraftVersionComboBox"
-                                  ItemsSource="{Binding MinecraftVersionOptions, Mode=TwoWay}"
-                                  SelectedItem="{Binding MinecraftVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  MaxDropDownHeight="150"
-                                  PlaceholderText="MC Version"
-                                  ToolTip.Tip="Minecraft Version to check loader version against" />
-
-                        <ComboBox Grid.Column="1"
-                                  Name="LoaderTypeComboBox"
-                                  ItemsSource="{Binding LoaderTypeOptions, Mode=TwoWay}"
-                                  SelectedItem="{Binding LoaderType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  PlaceholderText="Loader"
-                                  ToolTip.Tip="The Modloader to use" />
-
-                        <ComboBox Grid.Column="2"
-                                  Name="LoaderVersionComboBox"
-                                  ItemsSource="{Binding LoaderVersionOptions, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedItem="{Binding LoaderVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  MaxDropDownHeight="150"
-                                  PlaceholderText="Loader Version"
-                                  ToolTip.Tip="Loader version to download" />
-                        <Button Grid.Column="3" Content="Fetch" Command="{Binding FetchLoaderVersionCommand}"
-                                ToolTip.Tip="Automatically grabs the latest loader version" />
-                    </Grid>
-
-                    <Grid Grid.Row="4" ColumnDefinitions="6*,3*,4*,3*,4*">
-
-                        <TextBox Grid.Column="0" MaxLines="1"
-                                 Name="PackNameTextBox"
-                                 Text="{Binding ModpackName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Modpack Name"
-                                 ToolTip.Tip="Name of the ModPack" />
-
-                        <TextBox Grid.Column="1" MaxLines="1"
-                                 Name="VersionTextBox"
-                                 Text="{Binding ModpackVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Version"
-                                 ToolTip.Tip="Version of the ModPack" />
-
-                        <TextBox Grid.Column="2" MaxLines="1"
-                                 Name="AuthorTextBox"
-                                 Text="{Binding ModpackAuthor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Author"
-                                 ToolTip.Tip="Author of the ModPack" />
-
-                        <TextBox Grid.Column="3" MaxLines="1"
-                                 Name="CurseforgeIdTextBox"
-                                 Text="{Binding CurseforgeId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Curseforge ID"
-                                 ToolTip.Tip="Curseforge ID of the ModPack" />
-
-                        <TextBox Grid.Column="4" MaxLines="1"
-                                 Name="RecommendedRamTextBox"
-                                 Text="{Binding RecommendedRam, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Recommended Ram"
-                                 ToolTip.Tip="Recommended amount of ram for the ModPack in bytes" />
-                    </Grid>
-
-                    <Grid Grid.Row="5" ColumnDefinitions="*,*,*,*,*,Auto">
-                        <Button Grid.Column="0" MinWidth="150" Content="Config Window"
-                                Command="{Binding OpenConfigWindowCommand}" />
-                        <Button Grid.Column="1" MinWidth="150" Content="Filter Window"
-                                Command="{Binding OpenFilterWindowCommand}" />
-                        <Button Grid.Column="2" MinWidth="150" Content="Token Window"
-                                Command="{Binding OpenTokenWindowCommand}" />
-                        <Button Grid.Column="3" MinWidth="150" Content="Override Window"
-                                Command="{Binding OpenOverwriteWindowCommand}" />
-                        <Button Grid.Column="4" MinWidth="150" Content="Template Folder"
-                                Command="{Binding OpenTemplateFolderCommand}" />
-                        <Border Grid.Column="5" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
-                                BorderBrush="#5A5A70">
-                            <StackPanel Orientation="Horizontal">
-                                <ToggleSwitch Margin="10,0,5,0" IsChecked="{Binding ShowDebugLogs, Mode=TwoWay}" />
-                                <Border Margin="5" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
-                                        BorderBrush="#5A5A70">
-                                    <TextBlock Margin="10" TextAlignment="Center" HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" Text="Show Debug" />
-                                </Border>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="1" Margin="10" CornerRadius="10" BorderThickness="1">
-                <StackPanel Orientation="Vertical">
-                    <Button MinWidth="200" Content="Kill All Tasks" Command="{Binding KillTasksCommand}"
-                            BorderBrush="Red" />
-                    <Button MinWidth="200" Content="Generate Client Files" Command="{Binding GenerateClientCommand}" />
-                    <Button MinWidth="200" Content="Generate Server Files" Command="{Binding GenerateServerCommand}" />
-                    <Button MinWidth="200" Content="Generate Changelog" Command="{Binding GenerateChangelogCommand}" />
-                    <Button MinWidth="200" Content="Generate All" Command="{Binding GenerateAllCommand}" />
-                    <Button MinWidth="200" Content="Apply Filters" Command="{Binding ApplyFiltersCommand}" />
-                    <Button MinWidth="200" Content="Push to GitHub" Command="{Binding PushToGitHubCommand}" />
-                </StackPanel>
-            </Border>
+                <Border Grid.Column="1" Margin="10" CornerRadius="10" BorderThickness="1">
+                    <StackPanel Orientation="Vertical">
+                        <Button MinWidth="200" Content="Kill All Tasks" Command="{Binding KillTasksCommand}"
+                                BorderBrush="Red" />
+                        <Button MinWidth="200" Content="Generate Client Files" Command="{Binding GenerateClientCommand}" />
+                        <Button MinWidth="200" Content="Generate Server Files" Command="{Binding GenerateServerCommand}" />
+                        <Button MinWidth="200" Content="Generate Changelog" Command="{Binding GenerateChangelogCommand}" />
+                        <Button MinWidth="200" Content="Generate All" Command="{Binding GenerateAllCommand}" />
+                        <Button MinWidth="200" Content="Apply Filters" Command="{Binding ApplyFiltersCommand}" />
+                        <Button MinWidth="200" Content="Push to GitHub" Command="{Binding PushToGitHubCommand}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+            
+            <Grid Grid.Row="1" RowDefinitions="*,Auto" VerticalAlignment="Stretch" MinHeight="300">
+                <Border Grid.Row="0" Margin="10" CornerRadius="10" BorderThickness="1">
+                    <ScrollViewer Name="LogScrollViewer">
+                        <ItemsControl ItemsSource="{Binding FilteredLogEntries}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <SelectableTextBlock Text="{Binding Message}"
+                                                         FontFamily="Consolas"
+                                                         Foreground="{Binding Level, Converter={StaticResource ColorFormatter}}"
+                                                         TextWrapping="Wrap"
+                                                         TextTrimming="CharacterEllipsis"
+                                                         Margin="2"
+                                                         Background="Transparent"
+                                                         VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
         </Grid>
-
-        <Grid Grid.Row="1" RowDefinitions="*,Auto">
-            <Border Grid.Row="0" Margin="10" CornerRadius="10" BorderThickness="1">
-                <ScrollViewer Name="LogScrollViewer">
-                    <ItemsControl ItemsSource="{Binding FilteredLogEntries}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <VirtualizingStackPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <SelectableTextBlock Text="{Binding Message}"
-                                                     FontFamily="Consolas"
-                                                     Foreground="{Binding Level, Converter={StaticResource ColorFormatter}}"
-                                                     TextWrapping="Wrap"
-                                                     TextTrimming="CharacterEllipsis"
-                                                     Margin="2"
-                                                     Background="Transparent"
-                                                     VerticalAlignment="Center" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </Border>
-        </Grid>
-    </Grid>
+    </Viewbox>
 </Window>
