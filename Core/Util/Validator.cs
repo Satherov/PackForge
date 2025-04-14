@@ -71,10 +71,10 @@ public static partial class Validator
             case string str when string.IsNullOrEmpty(str):
                 LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} is empty", logLevel);
                 return true;
-            case Array arr when arr.Length == 0:
+            case Array { Length: 0 }:
                 LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} is empty", logLevel);
                 return true;
-            case ICollection coll when coll.Count == 0:
+            case ICollection { Count: 0 }:
                 LogLevelMessage($"{FormatVariableName(variableName, file, line, member)} is empty", logLevel);
                 return true;
         }
