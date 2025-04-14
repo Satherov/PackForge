@@ -16,7 +16,7 @@ public partial class MainWindow : Window
 {
     public double WindowWidth = 1280.0;
     public double WindowHeight = 720.0;
-    
+
     public MainWindow()
     {
         InitializeComponent();
@@ -54,9 +54,10 @@ public partial class MainWindow : Window
         Log.Debug("Application window closed");
         base.OnClosed(e);
     }
-    
+
     private const double AspectRatio = 16.0 / 9.0;
     private bool _isUpdating;
+
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (_isUpdating)

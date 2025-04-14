@@ -32,7 +32,7 @@
             <Setter Property="BorderBrush" Value="#3A3A50" />
             <Setter Property="UseFloatingWatermark" Value="True" />
         </Style>
-        
+
         <!-- Grid -->
         <Style Selector="Grid">
             <Setter Property="VerticalAlignment" Value="Stretch" />

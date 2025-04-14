@@ -6,7 +6,7 @@ namespace PackForge.ViewModels;
 public partial class ConfigWindowViewModel : ObservableObject
 {
     [ObservableProperty] private static bool _flagMcreator;
-    [ObservableProperty] private static bool _flagDataOnly;
+    [ObservableProperty] private static int _flagDataOnly;
     [ObservableProperty] private static bool _bccConfig;
     [ObservableProperty] private static bool _modListConfig;
 

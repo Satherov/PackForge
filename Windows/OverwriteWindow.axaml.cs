@@ -31,12 +31,9 @@ public partial class OverwriteWindow : Window
         Log.Debug("Overwrite window closed");
         base.OnClosed(e);
     }
-    
+
     private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
-        {
-            Close();
-        }
+        if (e.Key == Key.Escape) Close();
     }
 }

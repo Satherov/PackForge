@@ -11,7 +11,7 @@ public static class TestCommand
         dispatcher.Register(CommandNode.Literal("example").Then(CommandNode.Argument("word", StringArgument.StringType()).Then(CommandNode.Argument("number", IntArgument.IntType())
             .Executes(context =>
             {
-                string? word = StringArgument.GetString(context, "word");
+                string word = StringArgument.GetString(context, "word");
                 int number = IntArgument.GetInt(context, "number");
                 Log.Information($"TestCommand executed: word = {word}, number = {number}");
                 return Task.CompletedTask;

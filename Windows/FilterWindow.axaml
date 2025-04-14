@@ -55,11 +55,11 @@
             <Border Grid.Column="3" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
                     BorderBrush="#5A5A70">
                 <ScrollViewer VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-                    <TextBox Name="ExcludedAuthorTextBox" 
+                    <TextBox Name="ExcludedAuthorTextBox"
                              Margin="-10" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" TextWrapping="Wrap" AcceptsReturn="True"
                              Text="{Binding PrettyExcludedAuthors, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Watermark="Author Excluded Mods"
-                             ToolTip.Tip="Mods of given Authors to exclude when making any Export. Checks both name and namespace! One Entry per line"/>
+                             ToolTip.Tip="Mods of given Authors to exclude when making any Export. Checks both name and namespace! One Entry per line" />
                 </ScrollViewer>
             </Border>
 

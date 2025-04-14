@@ -43,8 +43,6 @@ public static partial class GitService
         public static GitHubUserInfo Empty => new(string.Empty, string.Empty);
     };
 
-    // Existing methods for cloning, updating repo, etc.
-
     public static async Task<GitHubRepoInfo> GetGitHubRepoInfoAsync(string url, string? githubToken = null, CancellationToken ct = default)
     {
         if (!TryValidateGitHubUrl(url, out Match? match))
@@ -237,7 +235,7 @@ public static partial class GitService
         {
             repo.Commit(commitBuilder.ToString(), signature, signature);
         }
-        catch(EmptyCommitException ex)
+        catch (EmptyCommitException ex)
         {
             Log.Warning($"No changes - nothing to commit");
             return false;
@@ -269,8 +267,7 @@ public static partial class GitService
         }
 
         GitHubRepoInfo repoInfo = await GetGitHubRepoInfoAsync(url, token, ct);
-        Branch localBranch = repo.Branches[repoInfo.DefaultBranch]
-                             ?? repo.CreateBranch(repoInfo.DefaultBranch, repo.Head.Tip);
+        Branch localBranch = repo.Branches[repoInfo.DefaultBranch] ?? repo.CreateBranch(repoInfo.DefaultBranch, repo.Head.Tip);
 
         string remoteName = localBranch.TrackedBranch?.RemoteName ?? "origin";
         if (repo.Network.Remotes.Any(r => r.Name == remoteName)) repo.Network.Remotes.Remove(remoteName);
@@ -300,13 +297,14 @@ public static partial class GitService
             {
                 IncludeReachableFrom = localBranch.Tip,
                 ExcludeReachableFrom = remoteBranch.Tip
-            }).ToList() : [];
-        
-        if(!newCommits.Any()) 
+            }).ToList()
+            : [];
+
+        if (!newCommits.Any())
         {
             Log.Information("Push skipped: no new commits to push.");
             return;
-        } 
+        }
 
         foreach (Commit commit in newCommits)
             Log.Debug($"Pushing commit: {commit.MessageShort} - {commit.Sha}");

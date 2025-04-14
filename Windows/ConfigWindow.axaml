@@ -33,12 +33,12 @@
                     <CheckBox Name="ModListCheckBox" VerticalAlignment="Top"
                               IsChecked="{Binding ModListConfig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               Content="Generate Modlist" ToolTip.Tip="Should the Crash Assistant Modlist be generated?" />
-                    
+
                     <!-- Flag MCreator -->
                     <CheckBox Name="FlagMCreatorCheckBox" VerticalAlignment="Top"
                               IsChecked="{Binding FlagMcreator, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               Content="Flag MCreator" ToolTip.Tip="Should MCreator Mods get flagged?" />
-                    
+
                     <!-- Flag Data only -->
                     <TextBox Name="FlagDataOnlyCheckBox" VerticalAlignment="Top"
                              Text="{Binding FlagDataOnly, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

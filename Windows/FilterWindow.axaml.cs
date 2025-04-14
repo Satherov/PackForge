@@ -32,12 +32,9 @@ public partial class FilterWindow : Window
         Log.Debug("Config window closed");
         base.OnClosed(e);
     }
-    
+
     private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
-        {
-            Close();
-        }
+        if (e.Key == Key.Escape) Close();
     }
 }

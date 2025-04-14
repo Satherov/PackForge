@@ -15,7 +15,7 @@
     </Window.Resources>
 
     <!-- Main Grid -->
-    <Viewbox Stretch="Uniform"> 
+    <Viewbox Stretch="Uniform">
         <Grid RowDefinitions="Auto,*" Width="1760" Height="990">
             <Grid Grid.Row="0" ColumnDefinitions="9*,2*">
                 <Border Grid.Column="0" Margin="10" CornerRadius="10" BorderThickness="1">
@@ -47,7 +47,7 @@
                                       Name="MinecraftVersionComboBox"
                                       ItemsSource="{Binding MinecraftVersionOptions, Mode=TwoWay}"
                                       SelectedItem="{Binding MinecraftVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      PlaceholderText="MC Version" ToolTip.Tip="Minecraft Version to check loader version against" MaxDropDownHeight="160"/>
+                                      PlaceholderText="MC Version" ToolTip.Tip="Minecraft Version to check loader version against" MaxDropDownHeight="160" />
 
                             <ComboBox Grid.Column="1"
                                       Name="LoaderTypeComboBox"
@@ -58,9 +58,9 @@
                             <ComboBox Grid.Column="2" Name="LoaderVersionComboBox"
                                       ItemsSource="{Binding LoaderVersionOptions, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       SelectedItem="{Binding LoaderVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      PlaceholderText="Loader Version" ToolTip.Tip="Loader version to download" MaxDropDownHeight="160"/>
-                            
-                            <Button Grid.Column="3" Content="Fetch" Command="{Binding FetchLoaderVersionCommand}" 
+                                      PlaceholderText="Loader Version" ToolTip.Tip="Loader version to download" MaxDropDownHeight="160" />
+
+                            <Button Grid.Column="3" Content="Fetch" Command="{Binding FetchLoaderVersionCommand}"
                                     ToolTip.Tip="Automatically grabs the latest loader version" />
                         </Grid>
 
@@ -73,7 +73,7 @@
                             <TextBox Grid.Column="1" MaxLines="1" Name="VersionTextBox"
                                      Text="{Binding ModpackVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      Watermark="Version" ToolTip.Tip="Version of the ModPack" />
-                            
+
                             <TextBox Grid.Column="1" MaxLines="1" Name="OldVersionTextBox"
                                      Text="{Binding ModpackVersion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      Watermark="Version" ToolTip.Tip="Old Version of the ModPack, used in the changelog generation" />
