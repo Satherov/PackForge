@@ -10,7 +10,7 @@
         SizeToContent="WidthAndHeight">
 
     <!-- Config Selection -->
-    <StackPanel Margin="10">
+    <StackPanel Margin="10" Width="300">
 
         <!-- Config Screen -->
         <Border Background="#2A2A40" CornerRadius="10">
@@ -24,33 +24,25 @@
             <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
                 <StackPanel>
 
-                    <!-- Crash Assistant -->
-                    <CheckBox VerticalAlignment="Top"
-                              Name="FlagMCreatorCheckBox"
-                              IsChecked="{Binding FlagMcreator, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Content="Flag MCreator"
-                              ToolTip.Tip="Should MCreator Mods be flagged" />
-
-                    <!-- Crash Assistant -->
-                    <CheckBox VerticalAlignment="Top"
-                              Name="FlagDataOnlyCheckBox"
-                              IsChecked="{Binding FlagDataOnly, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Content="Flag Data Only"
-                              ToolTip.Tip="Should the Crash Assistant Modlist be generated?" />
-
                     <!-- Better Compatability Checker -->
-                    <CheckBox VerticalAlignment="Top"
-                              Name="BccConfigCheckBox"
+                    <CheckBox Name="BccConfigCheckBox" VerticalAlignment="Top"
                               IsChecked="{Binding BccConfig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Content="Generate BCC-config"
-                              ToolTip.Tip="Should the Better Compatability Checker config be generated?" />
+                              Content="Generate BCC-config" ToolTip.Tip="Should the Better Compatability Checker config be generated?" />
 
                     <!-- Crash Assistant -->
-                    <CheckBox VerticalAlignment="Top"
-                              Name="ModListCheckBox"
+                    <CheckBox Name="ModListCheckBox" VerticalAlignment="Top"
                               IsChecked="{Binding ModListConfig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Content="Generate Modlist"
-                              ToolTip.Tip="Should the Crash Assistant Modlist be generated?" />
+                              Content="Generate Modlist" ToolTip.Tip="Should the Crash Assistant Modlist be generated?" />
+                    
+                    <!-- Flag MCreator -->
+                    <CheckBox Name="FlagMCreatorCheckBox" VerticalAlignment="Top"
+                              IsChecked="{Binding FlagMcreator, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Content="Flag MCreator" ToolTip.Tip="Should MCreator Mods get flagged?" />
+                    
+                    <!-- Flag Data only -->
+                    <TextBox Name="FlagDataOnlyCheckBox" VerticalAlignment="Top"
+                             Text="{Binding FlagDataOnly, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Watermark="Flag Data Only" ToolTip.Tip="At which threshold should get mods get flagged for potential data only? Set to -1 to disable" />
                 </StackPanel>
             </Border>
         </ScrollViewer>

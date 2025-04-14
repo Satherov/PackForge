@@ -20,8 +20,7 @@
         <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
             <StackPanel>
                 <Grid ColumnDefinitions="5*,Auto">
-                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
-                             Name="ClientPathTextBox"
+                    <TextBox Grid.Column="0" Name="ClientPathTextBox" MaxLines="1" HorizontalAlignment="Stretch"
                              Text="{Binding ClientPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Watermark="Client Override Folder"
                              ToolTip.Tip="The target folder to overwrite. Useful if you want to update your local instance alongside the generated files" />
@@ -34,8 +33,7 @@
         <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
             <StackPanel>
                 <Grid ColumnDefinitions="5*,Auto">
-                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
-                             Name="ServerPathTextBox"
+                    <TextBox Grid.Column="0" Name="ServerPathTextBox" MaxLines="1" HorizontalAlignment="Stretch"
                              Text="{Binding ServerPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Watermark="Server Override Folder"
                              ToolTip.Tip="The target folder to overwrite. Useful if you want to update your local instance alongside the generated files" />

@@ -20,11 +20,10 @@
         <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
             <StackPanel>
                 <Grid ColumnDefinitions="5*,Auto, Auto">
-                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
-                             Name="GitHubTokenTextBox"
+                    <TextBox Grid.Column="0" Name="GitHubTokenTextBox" MaxLines="1" HorizontalAlignment="Stretch"
                              Text="{Binding GitHubToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Watermark="GitHub Token"
-                             ToolTip.Tip="GitHub Token used for automation. Will be encrypted and stored after the first time the program is run" />
+                             ToolTip.Tip="GitHub Token used for automation" />
                     <Button Grid.Column="1" Content="Encrypt" Command="{Binding EncryptGitHubTokenCommand}"
                             ToolTip.Tip="Encrypt and stores the token" />
                     <Button Grid.Column="2" Content="Open" Command="{Binding OpenGitHubTokenPageCommand}"
@@ -37,11 +36,10 @@
         <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
             <StackPanel>
                 <Grid ColumnDefinitions="5*,Auto, Auto">
-                    <TextBox Grid.Column="0" MaxLines="1" HorizontalAlignment="Stretch"
-                             Name="CurseForgeTokenTextBox"
+                    <TextBox Grid.Column="0" Name="CurseForgeTokenTextBox" MaxLines="1" HorizontalAlignment="Stretch"
                              Text="{Binding CurseforgeToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Watermark="Curseforge API Token"
-                             ToolTip.Tip="Curseforge Token used for automation. Will be encrypted and stored after the first time the program is run" />
+                             ToolTip.Tip="Curseforge Token used for automation" />
                     <Button Grid.Column="1" Content="Encrypt" Command="{Binding EncryptCurseforgeTokenCommand}"
                             ToolTip.Tip="Encrypt and stores the token" />
                     <Button Grid.Column="2" Content="Open" Command="{Binding OpenCurseforgeTokenPageCommand}"

@@ -19,18 +19,12 @@
         <Grid Grid.Row="1" ColumnDefinitions="*, *, *, *">
 
             <!-- Excluded Common Selection -->
-            <Border Grid.Column="0" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
-                    BorderBrush="#5A5A70">
+            <Border Grid.Column="0" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
                 <ScrollViewer VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-                    <TextBox Margin="-10"
-                             VerticalAlignment="Stretch"
-                             HorizontalAlignment="Stretch"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             Name="ExcludedCommonTextBox"
+                    <TextBox Name="ExcludedCommonTextBox"
+                             Margin="-10" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" TextWrapping="Wrap" AcceptsReturn="True"
                              Text="{Binding PrettyExcludedCommon, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Watermark="Common Excluded Mods"
-                             ToolTip.Tip="Mods to exclude when making any Export. Works based on the ModID!" />
+                             Watermark="Common Excluded Mods" ToolTip.Tip="Mods to exclude when making any Export. Works based on the ModID! One Entry per line" />
                 </ScrollViewer>
             </Border>
 
@@ -38,15 +32,10 @@
             <Border Grid.Column="1" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
                     BorderBrush="#5A5A70">
                 <ScrollViewer VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-                    <TextBox Margin="-10"
-                             VerticalAlignment="Stretch"
-                             HorizontalAlignment="Stretch"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             Name="ExcludedClientTextBox"
+                    <TextBox Name="ExcludedClientTextBox"
+                             Margin="-10" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" TextWrapping="Wrap" AcceptsReturn="True"
                              Text="{Binding PrettyExcludedClient, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Watermark="Client Excluded Mods"
-                             ToolTip.Tip="Mods to exclude when making a Client Export. Works based on the ModID!" />
+                             Watermark="Client Excluded Mods" ToolTip.Tip="Mods to exclude when making a Client Export. Works based on the ModID! One Entry per line" />
                 </ScrollViewer>
             </Border>
 
@@ -54,15 +43,11 @@
             <Border Grid.Column="2" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
                     BorderBrush="#5A5A70">
                 <ScrollViewer VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-                    <TextBox Margin="-10"
-                             VerticalAlignment="Stretch"
-                             HorizontalAlignment="Stretch"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             Name="ExcludedServerTextBox"
+                    <TextBox Name="ExcludedServerTextBox"
+                             Margin="-10" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" TextWrapping="Wrap" AcceptsReturn="True"
                              Text="{Binding PrettyExcludedServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Watermark="Server Excluded Mods"
-                             ToolTip.Tip="Mods to exclude when making a Server Export. Works based on the ModID!" />
+                             ToolTip.Tip="Mods to exclude when making a Server Export. Works based on the ModID! One Entry per line" />
                 </ScrollViewer>
             </Border>
 
@@ -70,15 +55,11 @@
             <Border Grid.Column="3" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40"
                     BorderBrush="#5A5A70">
                 <ScrollViewer VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-                    <TextBox Margin="-10"
-                             VerticalAlignment="Stretch"
-                             HorizontalAlignment="Stretch"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             Name="ExcludedAuthorTextBox"
+                    <TextBox Name="ExcludedAuthorTextBox" 
+                             Margin="-10" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" TextWrapping="Wrap" AcceptsReturn="True"
                              Text="{Binding PrettyExcludedAuthors, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Watermark="Author Excluded Mods"
-                             ToolTip.Tip="Mods of given Authors to exclude when making any Export. Checks both name and namespace!" />
+                             ToolTip.Tip="Mods of given Authors to exclude when making any Export. Checks both name and namespace! One Entry per line"/>
                 </ScrollViewer>
             </Border>
 

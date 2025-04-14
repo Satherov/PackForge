@@ -1,5 +1,6 @@
 ﻿using System;
 using Avalonia.Controls;
+using Avalonia.Input;
 using PackForge.ViewModels;
 using Serilog;
 
@@ -10,6 +11,7 @@ public partial class OverwriteWindow : Window
     public OverwriteWindow()
     {
         InitializeComponent();
+        KeyDown += MainWindow_KeyDown;
     }
 
     protected override void OnClosed(EventArgs e)
@@ -28,5 +30,13 @@ public partial class OverwriteWindow : Window
 
         Log.Debug("Overwrite window closed");
         base.OnClosed(e);
+    }
+    
+    private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+        }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using Avalonia.Controls;
+using Avalonia.Input;
 using PackForge.Core.Data;
 using PackForge.ViewModels;
 using Serilog;
@@ -11,6 +12,7 @@ public partial class FilterWindow : Window
     public FilterWindow()
     {
         InitializeComponent();
+        KeyDown += MainWindow_KeyDown;
     }
 
     protected override void OnClosed(EventArgs e)
@@ -29,5 +31,13 @@ public partial class FilterWindow : Window
 
         Log.Debug("Config window closed");
         base.OnClosed(e);
+    }
+    
+    private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+        }
     }
 }
