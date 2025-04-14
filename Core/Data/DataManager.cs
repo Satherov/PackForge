@@ -4,10 +4,12 @@ using System.IO;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using PackForge.Core.Util;
 using Serilog;
 using Serilog.Events;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace PackForge.Core.Data;
 
@@ -27,19 +29,31 @@ public static class DataManager
     {
         if (!Validator.FileExists(AppDataPath, LogEventLevel.Debug))
         {
-            Log.Information("No config file found. Generating default config.");
+            Log.Information("No config file found. Generating default config");
             SaveConfig();
+            return;
         }
 
         try
         {
             string json = File.ReadAllText(AppDataPath);
-            _container = JsonSerializer.Deserialize<ConfigDataContainer>(json, JsonOptions) ?? throw new NullReferenceException("Config could not be deserialized.");
+            _container = JsonSerializer.Deserialize<ConfigDataContainer>(json, JsonOptions) ?? throw new NullReferenceException("Config could not be deserialized");
             Log.Debug("Config loaded successfully");
         }
         catch (Exception ex)
         {
-            Log.Error($"Error loading config: {ex.Message}");
+            Log.Warning("Config loading failed, attempting to run DataFix");
+            try
+            {
+                string json = File.ReadAllText(AppDataPath);
+                JsonObject? holder = JsonSerializer.Deserialize<JsonObject>(json, JsonOptions);
+                _container = DataFix(holder);
+                SaveConfig();
+            }
+            catch (Exception ex2)
+            {
+                Log.Error($"Error loading config: {ex2.Message}");
+            }
         }
     }
 
@@ -97,7 +111,46 @@ public static class DataManager
         }
     }
 
-    // Direct Access Properties
+    private static ConfigDataContainer DataFix(JsonObject? jsonObject)
+    {
+        if (jsonObject == null)
+        {
+            Log.Error("DataFix: Data is null");
+            return new ConfigDataContainer();
+        }
+
+        ConfigDataContainer defaultContainer = new();
+        Type configType = typeof(ConfigDataContainer);
+
+        foreach (PropertyInfo prop in configType.GetProperties())
+        {
+            string key = prop.Name;
+
+            if (!jsonObject.ContainsKey(key))
+            {
+                object? defaultValue = prop.GetValue(defaultContainer);
+                jsonObject[key] = JsonSerializer.SerializeToNode(defaultValue, JsonOptions);
+                continue;
+            }
+
+            try
+            {
+                object? converted = jsonObject[key]!.Deserialize(prop.PropertyType);
+                if (converted == null) throw new Exception("Conversion returned null");
+
+                jsonObject[key] = JsonSerializer.SerializeToNode(converted, JsonOptions);
+            }
+            catch
+            {
+                Log.Warning($"DataFix: Failed to convert '{key}' to type '{prop.PropertyType}'. Using default value");
+                object? defaultValue = prop.GetValue(defaultContainer);
+                jsonObject[key] = JsonSerializer.SerializeToNode(defaultValue, JsonOptions);
+            }
+        }
+
+        return jsonObject.Deserialize<ConfigDataContainer>() ?? new ConfigDataContainer();
+    }
+
     public static string SourceFolderPath
     {
         get => _container.SourceFolderPath;
@@ -182,7 +235,7 @@ public static class DataManager
         set => _container.FlagMcreator = value;
     }
 
-    public static bool FlagDataOnly
+    public static int FlagDataOnly
     {
         get => _container.FlagDataOnly;
         set => _container.FlagDataOnly = value;
@@ -241,7 +294,7 @@ public class ConfigDataContainer
     public string ClientOverwritePath { get; set; } = string.Empty;
     public string ServerOverwritePath { get; set; } = string.Empty;
     public bool FlagMcreator { get; set; }
-    public bool FlagDataOnly { get; set; }
+    public int FlagDataOnly { get; set; }
     public bool BccConfig { get; set; }
     public bool ModListConfig { get; set; }
     public List<string> ExcludedCommon { get; set; } = [];
