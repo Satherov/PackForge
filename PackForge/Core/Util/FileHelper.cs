@@ -59,9 +59,9 @@ public static class FileHelper
         foreach (string directory in Directory.GetDirectories(rootPath))
         {
             string dirName = Path.GetFileName(directory);
-            if(dirName == "overrides") continue;
-            
-            if(Validator.DirectoryEmpty(directory, null))
+            if (dirName == "overrides") continue;
+
+            if (Validator.DirectoryEmpty(directory, null))
                 Directory.Delete(directory, true);
             else
                 Directory.Move(directory, Path.Combine(overwritesFolderPath, dirName));
@@ -167,7 +167,7 @@ public static class FileHelper
         SemaphoreSlim semaphore = new(4);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            await CopyFolderRobocopyAsync(sourceDir,targetDir, ruleSet, ct);
+            await CopyFolderRobocopyAsync(sourceDir, targetDir, ruleSet, ct);
         else
             await CopyFolderRecursiveAsync(sourceDir, targetDir, ruleSet, sourceDir, semaphore, ct);
 
@@ -182,19 +182,18 @@ public static class FileHelper
 
         sourceDir = sourceDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         targetDir = targetDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        
+
         Directory.CreateDirectory(targetDir);
         Log.Debug($"Using Robocopy to copy files from {sourceDir} to {targetDir}");
-        
-        
+
+
         if (ruleSet is { Whitelist: true })
         {
             List<Task> tasks = [];
             List<string> files = [];
-            
+
             foreach (Rule rule in ruleSet.Rules)
-            {
-                if(rule.Attributes == FileAttributes.Directory)
+                if (rule.Attributes == FileAttributes.Directory)
                 {
                     string sourceFolder = Path.Combine(sourceDir, rule.FilePath);
                     string destFolder = Path.Combine(targetDir, rule.FilePath);
@@ -207,9 +206,8 @@ public static class FileHelper
                 {
                     files.Add(Path.GetFileName(rule.FilePath));
                 }
-            }
-            
-            if(tasks.Count > 0)
+
+            if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
             if (files.Count <= 0) return;
             {
@@ -230,12 +228,10 @@ public static class FileHelper
                 List<string> excludedFiles = [];
 
                 foreach (Rule rule in ruleSet.Rules)
-                {
                     if (rule.Attributes.HasFlag(FileAttributes.Directory))
                         excludedDirs.Add($"\"{Path.Combine(sourceDir, rule.FilePath)}\"");
                     else
                         excludedFiles.Add($"\"{Path.Combine(sourceDir, rule.FilePath)}\"");
-                }
                 if (excludedDirs.Count > 0)
                     argBuilder.Append(" /XD " + string.Join(" ", excludedDirs));
                 if (excludedFiles.Count > 0)
@@ -246,7 +242,7 @@ public static class FileHelper
             Log.Debug($"Robocopy arguments: {args}");
             await RunRobocopy(args, ct);
         }
-        
+
         return;
 
         async Task RunRobocopy(string arguments, CancellationToken token)
@@ -268,7 +264,8 @@ public static class FileHelper
         }
     }
 
-    private static async Task CopyFolderRecursiveAsync(string sourceDir, string targetDir, RuleSet? ruleSet, string baseSource, SemaphoreSlim semaphore, CancellationToken ct = default)
+    private static async Task CopyFolderRecursiveAsync(string sourceDir, string targetDir, RuleSet? ruleSet, string baseSource, SemaphoreSlim semaphore,
+        CancellationToken ct = default)
     {
         if (!Directory.Exists(sourceDir))
             return;
@@ -285,24 +282,20 @@ public static class FileHelper
             {
                 if (ruleSet.Whitelist)
                 {
-                    if (!ruleSet.Rules.Any(r => !r.Attributes.HasFlag(FileAttributes.Directory) &&
-                         string.Equals(r.FilePath, relativeFile, StringComparison.OrdinalIgnoreCase)))
-                    {
+                    if (!ruleSet.Rules.Any(r => !r.Attributes.HasFlag(FileAttributes.Directory) && string.Equals(r.FilePath, relativeFile, StringComparison.OrdinalIgnoreCase)))
                         skip = true;
-                    }
                 }
                 else
                 {
-                    if (ruleSet.Rules.Any(r => !r.Attributes.HasFlag(FileAttributes.Directory) &&
-                         string.Equals(r.FilePath, relativeFile, StringComparison.OrdinalIgnoreCase)))
-                    {
+                    if (ruleSet.Rules.Any(r => !r.Attributes.HasFlag(FileAttributes.Directory) && string.Equals(r.FilePath, relativeFile, StringComparison.OrdinalIgnoreCase)))
                         skip = true;
-                    }
                 }
             }
+
             if (!skip)
                 fileTasks.Add(CopySingleFileAsync(file, targetDir, semaphore, ct));
         }
+
         await Task.WhenAll(fileTasks);
 
         string[] subDirs = Directory.GetDirectories(sourceDir);
@@ -315,30 +308,27 @@ public static class FileHelper
             {
                 if (ruleSet.Whitelist)
                 {
-                    if (!ruleSet.Rules.Any(r => r.Attributes.HasFlag(FileAttributes.Directory) &&
-                         (string.Equals(r.FilePath, relativeDir, StringComparison.OrdinalIgnoreCase) ||
-                          relativeDir.StartsWith(r.FilePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))))
-                    {
+                    if (!ruleSet.Rules.Any(r => r.Attributes.HasFlag(FileAttributes.Directory) && (string.Equals(r.FilePath, relativeDir, StringComparison.OrdinalIgnoreCase) ||
+                                                                                                   relativeDir.StartsWith(r.FilePath + Path.DirectorySeparatorChar,
+                                                                                                       StringComparison.OrdinalIgnoreCase))))
                         skip = true;
-                    }
                 }
                 else
                 {
-                    if (ruleSet.Rules.Any(r => r.Attributes.HasFlag(FileAttributes.Directory) &&
-                         (string.Equals(r.FilePath, relativeDir, StringComparison.OrdinalIgnoreCase) ||
-                          relativeDir.StartsWith(r.FilePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))))
-                    {
+                    if (ruleSet.Rules.Any(r => r.Attributes.HasFlag(FileAttributes.Directory) && (string.Equals(r.FilePath, relativeDir, StringComparison.OrdinalIgnoreCase) ||
+                                                                                                  relativeDir.StartsWith(r.FilePath + Path.DirectorySeparatorChar,
+                                                                                                      StringComparison.OrdinalIgnoreCase))))
                         skip = true;
-                    }
                 }
             }
 
             if (skip) continue;
-            
+
             string subFolderName = Path.GetFileName(subDir);
             string newDestPath = Path.Combine(targetDir, subFolderName);
             subDirTasks.Add(CopyFolderRecursiveAsync(subDir, newDestPath, ruleSet, baseSource, semaphore, ct));
         }
+
         await Task.WhenAll(subDirTasks);
     }
 
@@ -349,14 +339,14 @@ public static class FileHelper
         string destFile = Path.Combine(destFolder, fileName);
 
         if (File.Exists(destFile))
-        {
             try
             {
                 FileInfo destInfo = new(destFile);
                 destInfo.Attributes &= ~FileAttributes.ReadOnly;
             }
-            catch { }
-        }
+            catch
+            {
+            }
 
         await semaphore.WaitAsync(ct);
         try

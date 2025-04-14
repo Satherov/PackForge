@@ -12,32 +12,42 @@ using Tomlyn.Model;
 
 namespace PackForge.Core.Util;
 
-public record ModInfo(string FilePath, string Name, string ModId, string Version, List<string> Authors, bool DataOnly, bool McreatorFragments, List<ModInfo> JarInJars)
+public record ModInfo(
+    string FilePath,
+    string Name,
+    string ModId,
+    string Version,
+    List<string> Authors,
+    int Classes,
+    bool McreatorFragments,
+    bool OnlyJarInJars,
+    List<ModInfo> JarInJars)
 {
     public string FilePath { get; set; } = FilePath;
     public string Name { get; set; } = Name;
     public string ModId { get; set; } = ModId;
     public string Version { get; set; } = Version;
     public List<string> Authors { get; set; } = Authors;
-    public bool DataOnly { get; set; } = DataOnly;
+    public int Classes { get; set; } = Classes;
     public bool McreatorFragments { get; set; } = McreatorFragments;
+    public bool OnlyJarInJars { get; set; }
     public List<ModInfo> JarInJars { get; set; } = JarInJars;
 
-    public static ModInfo Empty => new(string.Empty, string.Empty, string.Empty, string.Empty, [], false, false, []);
+    public static ModInfo Empty => new(string.Empty, string.Empty, string.Empty, string.Empty, [], -1, false, false, []);
 
     public static ModInfo NoData(string path)
     {
-        return new ModInfo(path, string.Empty, string.Empty, string.Empty, [], false, false, []);
+        return new ModInfo(path, string.Empty, string.Empty, string.Empty, [], -1, false, false, []);
     }
 
     public static ModInfo JarInJarOnly(string path, List<ModInfo> jarInJars)
     {
-        return new ModInfo(path, string.Empty, string.Empty, string.Empty, [], false, false, jarInJars);
+        return new ModInfo(path, string.Empty, string.Empty, string.Empty, [], -1, false, false, jarInJars);
     }
 
     public override string ToString()
     {
-        return $"{Path.GetFileName(FilePath)}: ({ModId}) {Name}-{Version} by '{string.Join(", ", Authors)}' [DataOnly: {DataOnly}] [MCreator: {McreatorFragments}]";
+        return $"{Path.GetFileName(FilePath)}: ({ModId}) {Name}-{Version} by '{string.Join(", ", Authors)}' [Classes: {Classes}] [MCreator: {McreatorFragments}]";
     }
 }
 
@@ -102,16 +112,13 @@ public static class JarHelper
             await using Stream stream = tomlEntry.Open();
             using StreamReader reader = new(stream);
             StringBuilder contentBuilder = new();
-            while (await reader.ReadLineAsync(ct) is { } line)
-            {
-                contentBuilder.AppendLine(line);
-            }
+            while (await reader.ReadLineAsync(ct) is { } line) contentBuilder.AppendLine(line);
             string content = contentBuilder.ToString();
-            
+
             if (!string.IsNullOrWhiteSpace(content))
             {
                 TomlTable tomlModel = Toml.Parse(content).ToModel();
-                if (tomlModel.TryGetValue("mods", out object? modsObj) && modsObj is TomlTableArray modsArray && modsArray.Count > 0)
+                if (tomlModel.TryGetValue("mods", out object? modsObj) && modsObj is TomlTableArray { Count: > 0 } modsArray)
                 {
                     TomlTable modEntry = modsArray[0];
                     modEntry.TryGetValue("displayName", out object? displayName);
@@ -133,6 +140,11 @@ public static class JarHelper
                 }
             }
         }
+        else
+        {
+            info.OnlyJarInJars = true;
+        }
+
 
         List<ZipArchiveEntry> jarInJarEntries = archive.Entries.Where(entry =>
             entry.FullName.Contains("META-INF/jarjar", StringComparison.OrdinalIgnoreCase) && entry.FullName.EndsWith(".jar", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -145,19 +157,13 @@ public static class JarHelper
             info.JarInJars.Add(nestedInfo);
         }
 
-        List<ZipArchiveEntry> otherEntries = archive.Entries.Where(entry =>
-            !entry.FullName.StartsWith("assets", StringComparison.OrdinalIgnoreCase) && !entry.FullName.StartsWith("data", StringComparison.OrdinalIgnoreCase)).ToList();
-
-        bool classFound = info.JarInJars.Count > 0;
         bool mcreatorFound = false;
 
-        foreach (string file in otherEntries.Select(entry => entry.FullName))
+        foreach (string file in archive.Entries.ToList().Select(entry => entry.FullName))
         {
-            if (!classFound && file.EndsWith(".class", StringComparison.OrdinalIgnoreCase))
-            {
-                classFound = true;
-                info.DataOnly = false;
-            }
+            Log.Debug(file);
+
+            if (file.EndsWith(".class", StringComparison.OrdinalIgnoreCase)) info.Classes++;
 
             string[] segments = file.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
 
@@ -167,14 +173,7 @@ public static class JarHelper
                 mcreatorFound = true;
                 info.McreatorFragments = true;
             }
-
-            if (classFound && mcreatorFound)
-                break;
         }
-
-
-        if (!classFound)
-            info.DataOnly = true;
 
         return info;
     }

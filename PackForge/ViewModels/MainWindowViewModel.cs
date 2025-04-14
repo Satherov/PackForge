@@ -14,6 +14,7 @@ using PackForge.Core;
 using PackForge.Core.Builders;
 using PackForge.Core.Data;
 using PackForge.Core.Service;
+using PackForge.Core.Terminal;
 using PackForge.Core.Util;
 using PackForge.Logger;
 using Serilog;
@@ -25,10 +26,10 @@ namespace PackForge.ViewModels;
 public partial class MainWindowViewModel : ObservableObject
 {
     private static Task _silentTask = Task.CompletedTask;
-    private static CancellationTokenSource _cts = new();
-    
+    public static CancellationTokenSource Cts = new();
+
     private static readonly ConcurrentQueue<GlobalLog.LogEntry> LogQueue = new();
-    private static readonly CancellationTokenSource _logCts = new();
+    private static CancellationTokenSource _logCts = new();
 
     private static readonly string TemplateFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PackForge", "templates");
 
@@ -66,15 +67,13 @@ public partial class MainWindowViewModel : ObservableObject
             if (args.NewItems == null) return;
 
             foreach (object? item in args.NewItems)
-            {
                 if (item is GlobalLog.LogEntry entry)
                     LogQueue.Enqueue(entry);
-            }
         };
 
         _ = Task.Run(() => ProcessLogs(_logCts.Token));
     }
-    
+
     private static async Task ProcessLogs(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -86,20 +85,18 @@ public partial class MainWindowViewModel : ObservableObject
                 if (_showDebugLogs || entry.Level != LogEventLevel.Debug)
                     batch.Add(entry);
 
-                if (batch.Count >= 10)
+                if (batch.Count >= 50)
                     break;
             }
 
             if (batch.Count > 0)
-            {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     foreach (GlobalLog.LogEntry e in batch)
                         PrivateLogEntries.Add(e);
                 });
-            }
 
-            await Task.Delay(100, ct);
+            await Task.Delay(50, ct);
         }
     }
 
@@ -107,7 +104,6 @@ public partial class MainWindowViewModel : ObservableObject
     {
         _logCts.Cancel();
     }
-
 
     public ReadOnlyObservableCollection<string> LoaderTypeOptions { get; init; } = new([
         "NeoForge",
@@ -152,8 +148,6 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private string? _curseforgeId;
     [ObservableProperty] private string? _modpackAuthor;
 
-    [ObservableProperty] private List<string>? _filesToCommit;
-
     public AsyncRelayCommand? KillTasksCommand { get; set; }
     public AsyncRelayCommand? OpenSourceFolderCommand { get; set; }
     public AsyncRelayCommand? OpenDestinationFolderCommand { get; set; }
@@ -176,7 +170,7 @@ public partial class MainWindowViewModel : ObservableObject
         InitLogs();
         LoadData();
         _silentTask = TokenManager.IsTokenStored(TokenType.GitHub) && !Validator.IsNullOrWhiteSpace(GitHubLink, LogEventLevel.Debug)
-            ? GitService.DownloadOrUpdateRepoAsync(GitHubLink, _cts.Token)
+            ? GitService.DownloadOrUpdateRepoAsync(GitHubLink, Cts.Token)
             : Task.CompletedTask;
         InitializeCommands();
     }
@@ -190,22 +184,23 @@ public partial class MainWindowViewModel : ObservableObject
         FetchLoaderVersionCommand = CreateCommand(() => FetchLoaderVersionsAsync(LoaderType, MinecraftVersion));
 
         GenerateClientCommand = new AsyncRelayCommand(async () => await GenerateClientAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, _silentTask, MinecraftVersion,
-            LoaderType, LoaderVersion, ModpackName, ModpackVersion, ModpackAuthor, CurseforgeId, _cts.Token));
+            LoaderType, LoaderVersion, ModpackName, ModpackVersion, ModpackAuthor, CurseforgeId, Cts.Token));
         GenerateServerCommand = new AsyncRelayCommand(async () => await GenerateServerAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, _silentTask, LoaderType,
-            LoaderVersion, ModpackName, ModpackVersion, CurseforgeId, _cts.Token));
-        GenerateChangelogCommand = CreateCommand(() => GenerateChangelog(SourceFolderPath, FinalPath(DestinationFolderPath), ModpackVersion, _cts.Token));
+            LoaderVersion, ModpackName, ModpackVersion, CurseforgeId, Cts.Token));
+        GenerateChangelogCommand = CreateCommand(() => GenerateChangelog(SourceFolderPath, DestinationFolderPath, ModpackName, ModpackVersion, Cts.Token));
         GenerateAllCommand = CreateCommand(async () =>
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             Log.Information("Running all tasks");
 
             if (!Validator.IsNullOrWhiteSpace(GitHubLink))
-                await GenerateRepo(GitHubLink, _silentTask, _cts.Token);
+                await GenerateRepo(GitHubLink, _silentTask, Cts.Token);
 
             await Task.WhenAll(
-                GenerateClientAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, null, MinecraftVersion, LoaderType, LoaderVersion, ModpackName, ModpackVersion, ModpackAuthor, CurseforgeId, _cts.Token),
-                GenerateServerAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, null, LoaderType, LoaderVersion, ModpackName, ModpackVersion, CurseforgeId, _cts.Token),
-                GenerateChangelog(SourceFolderPath, FinalPath(DestinationFolderPath), ModpackVersion, _cts.Token));
+                GenerateClientAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, null, MinecraftVersion, LoaderType, LoaderVersion, ModpackName, ModpackVersion,
+                    ModpackAuthor, CurseforgeId, Cts.Token),
+                GenerateServerAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, null, LoaderType, LoaderVersion, ModpackName, ModpackVersion, CurseforgeId, Cts.Token),
+                GenerateChangelog(SourceFolderPath, DestinationFolderPath, ModpackName, ModpackVersion, Cts.Token));
 
             Log.Information($"All tasks completed after {stopwatch.ElapsedMilliseconds}ms");
         });
@@ -214,10 +209,10 @@ public partial class MainWindowViewModel : ObservableObject
         ApplyFiltersCommand = CreateCommand(async () =>
         {
             if (Validator.DirectoryEmpty(SourceFolderPath)) return;
-            await FileHelper.ApplyFilters(Path.Combine(SourceFolderPath, "mods"), true, _cts.Token);
+            await FileHelper.ApplyFilters(Path.Combine(SourceFolderPath, "mods"), true, Cts.Token);
         });
 
-        PushToGitHubCommand = CreateCommand(() => PushToGitHub(GitHubLink, _silentTask, _cts.Token));
+        PushToGitHubCommand = CreateCommand(() => PushToGitHub(GitHubLink, _silentTask, Cts.Token));
 
         OpenConfigWindowCommand = CreateCommand(() => Task.Run(() => WindowHelper.ShowWindow(() => WindowHelper.ConfigWindow)));
         OpenFilterWindowCommand = CreateCommand(() => Task.Run(() => WindowHelper.ShowWindow(() => WindowHelper.FilterWindow)));
@@ -275,11 +270,20 @@ public partial class MainWindowViewModel : ObservableObject
         DataManager.SaveConfig();
     }
 
+    public static void HandleTerminalInput(string? input)
+    {
+        if (Validator.IsNullOrWhiteSpace(input)) return;
+        Task.Run(() => Terminal.RunCommand(input));
+    }
+
+
     private static async Task CancelAllOperations()
     {
         Log.Warning("User requested cancellation");
-        await _cts.CancelAsync();
-        _cts = new CancellationTokenSource();
+        await Cts.CancelAsync();
+        await _logCts.CancelAsync();
+        Cts = new CancellationTokenSource();
+        _logCts = new CancellationTokenSource();
     }
 
     private async Task FetchLoaderVersionsAsync(string? loaderType, string? minecraftVersion)
@@ -349,21 +353,23 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private static async Task GenerateChangelog(string? sourceFolder, string? destinationFolder, string? version, CancellationToken ct)
+    private static async Task GenerateChangelog(string? sourceFolder, string? destinationFolder, string? packName, string? packVersion, CancellationToken ct)
     {
-        if (Validator.IsNullOrWhiteSpace(sourceFolder) || Validator.IsNullOrWhiteSpace(destinationFolder))
+        if (Validator.IsNullOrWhiteSpace(sourceFolder) || Validator.IsNullOrWhiteSpace(destinationFolder) || Validator.IsNullOrWhiteSpace(packName) ||
+            Validator.IsNullOrWhiteSpace(packVersion))
             return;
 
-        version ??= "0.0.0";
+        string root = await FileHelper.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
+
         string export = Path.Join(sourceFolder, "local", "kubejs", "export");
-        await ChangelogGenerator.GenerateFullChangelogAsync(destinationFolder, export, version, ct);
+        await ChangelogGenerator.GenerateFullChangelogAsync(root, export, packVersion, ct: ct);
     }
 
     private static async Task PushToGitHub(string? url, Task? silentCloneTask, CancellationToken ct = default)
     {
         if (Validator.DirectoryEmpty(GitService.TempRepoPath) || Validator.IsNullOrWhiteSpace(url))
             return;
-        
+
         if (silentCloneTask is { IsCompleted: false })
         {
             Log.Debug("Waiting for silent clone task to finish");
@@ -382,7 +388,7 @@ public partial class MainWindowViewModel : ObservableObject
         string token = await TokenManager.RetrieveTokenValueByTypeAsync(TokenType.GitHub);
 
         bool success = await GitService.CommitFilesAsync(token, files, autoCommitMessage.ToString(), ct);
-        if(success) await GitService.PushCommits(token, url, ct);
+        if (success) await GitService.PushCommits(token, url, ct);
     }
 
     private static async Task GenerateRepo(string repoUrl, Task? silentCloneTask, CancellationToken ct = default)
@@ -398,7 +404,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private string FinalPath(string? destinationPath)
     {
-        return !Validator.DirectoryExists(destinationPath, null) ? string.Empty : Path.Combine(Path.Join(destinationPath, ModpackName), $"{ModpackVersion ?? "0.0.0"}");
+        return Validator.IsNullOrWhiteSpace(destinationPath) ? string.Empty : Path.Combine(destinationPath, $"{ModpackName ?? "unknown"}", $"{ModpackVersion ?? "0.0.0"}");
     }
 
     private static async Task CopyFilesBasedOnRepoStatus(string sourceFolder, string targetDir, RuleSet baseRules, RuleSet localRules, RuleSet repoRules, string? overwritePath,

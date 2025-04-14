@@ -46,21 +46,30 @@ public static class ChangelogGenerator
     private static readonly string OldExportDir = Path.Combine(ChangelogPath, "export-old");
     private static readonly string NewExportDir = Path.Combine(ChangelogPath, "export-new");
 
-    public static async Task GenerateFullChangelogAsync(string changelogPath, string exportSourcePath, string version, CancellationToken ct = default)
+    public static async Task GenerateFullChangelogAsync(string changelogPath, string? exportSourcePath, string version, string? oldVersion = null, CancellationToken ct = default)
     {
-        if (Validator.DirectoryEmpty(exportSourcePath)) return;
+        if (Validator.DirectoryEmpty(exportSourcePath) && !Validator.DirectoryExists(OldExportDir, null) && !Validator.DirectoryExists(NewExportDir, null)) return;
 
-        if (!Validator.DirectoryExists(OldExportDir))
+        if (oldVersion == null && !Validator.DirectoryExists(OldExportDir))
         {
             Log.Warning("Old export directory does not exist, if this is your first time running the generator, do another kubejs export and then run it again");
             await FileHelper.CopyFilesAsync(exportSourcePath, OldExportDir, null, ct);
-            return;
         }
 
-        if (Validator.DirectoryExists(NewExportDir, LogEventLevel.Debug)) Directory.Delete(NewExportDir, true);
+        if (oldVersion == null && !Validator.DirectoryExists(NewExportDir))
+        {
+            Log.Information("Collecting new export files");
+            await FileHelper.CopyFilesAsync(exportSourcePath, NewExportDir, null, ct);
+        }
 
-        Log.Information("Collecting new export files");
-        await FileHelper.CopyFilesAsync(exportSourcePath, NewExportDir, null, ct);
+        if (oldVersion == null)
+        {
+            Log.Debug("Creating versioned export");
+            await FileHelper.CopyFilesAsync(NewExportDir, Path.Combine(ChangelogPath, $"export-{version}"), null, ct);
+        }
+
+        string oldExport = oldVersion == null ? OldExportDir : Path.Combine(ChangelogPath, $"export-{oldVersion}");
+        string newExport = oldVersion == null ? NewExportDir : Path.Combine(ChangelogPath, $"export-{version}");
 
         Stopwatch stopwatch = Stopwatch.StartNew();
         Log.Information("Starting changelog generation");
@@ -73,23 +82,23 @@ public static class ChangelogGenerator
         sb.AppendLine("Summary of changes here!\n");
         sb.AppendLine("---\n");
 
-        List<ModEntry> modsDiff = await GetModsDiffAsync(ct);
+        List<ModEntry> modsDiff = await GetModsDiffAsync(oldExport, newExport, ct);
         AppendModsSection(sb, modsDiff);
 
         Log.Debug("Collecting files");
         Task<Dictionary<string, string>> oldTask =
             Task.Run(
-                () => Directory.EnumerateFiles(OldExportDir, "*.json", SearchOption.AllDirectories)
-                    .Where(f => Path.GetRelativePath(OldExportDir, f).Contains(Path.DirectorySeparatorChar)).ToDictionary(f => Path.GetRelativePath(OldExportDir, f), f => f), ct);
+                () => Directory.EnumerateFiles(oldExport, "*.json", SearchOption.AllDirectories)
+                    .Where(f => Path.GetRelativePath(oldExport, f).Contains(Path.DirectorySeparatorChar)).ToDictionary(f => Path.GetRelativePath(oldExport, f), f => f), ct);
 
         Task<Dictionary<string, string>> newTask =
             Task.Run(
-                () => Directory.EnumerateFiles(NewExportDir, "*.json", SearchOption.AllDirectories)
-                    .Where(f => Path.GetRelativePath(NewExportDir, f).Contains(Path.DirectorySeparatorChar)).ToDictionary(f => Path.GetRelativePath(NewExportDir, f), f => f), ct);
+                () => Directory.EnumerateFiles(newExport, "*.json", SearchOption.AllDirectories)
+                    .Where(f => Path.GetRelativePath(newExport, f).Contains(Path.DirectorySeparatorChar)).ToDictionary(f => Path.GetRelativePath(newExport, f), f => f), ct);
 
         await Task.WhenAll(oldTask, newTask);
 
-        List<FileEntry> fileDiffs = await GetFolderDiffAsync(oldTask.Result, newTask.Result, ct);
+        List<FileEntry> fileDiffs = await GetFolderDiffAsync(oldExport, newExport, oldTask.Result, newTask.Result, ct);
         Dictionary<SectionType, List<FileEntry>> sectionMap = GroupBySection(fileDiffs);
 
         Log.Information($"Writing changelog entries to file");
@@ -106,7 +115,8 @@ public static class ChangelogGenerator
                 sb.AppendLine($"<summary>{changeType} ({group.Count})</summary>");
                 sb.AppendLine("<blockquote>\n");
 
-                foreach (string entryText in group.Select(entry => BuildEntry(entry, section)).Where(entryText => !string.IsNullOrEmpty(entryText))) sb.AppendLine(entryText);
+                foreach (string entryText in group.Select(entry => BuildEntry(oldExport, newExport, entry, section)).Where(entryText => !string.IsNullOrEmpty(entryText)))
+                    sb.AppendLine(entryText);
 
                 sb.AppendLine("</blockquote>");
                 sb.AppendLine("</details>\n");
@@ -120,10 +130,10 @@ public static class ChangelogGenerator
         Directory.Move(NewExportDir, OldExportDir);
     }
 
-    private static async Task<List<ModEntry>> GetModsDiffAsync(CancellationToken ct = default)
+    private static async Task<List<ModEntry>> GetModsDiffAsync(string oldExport, string newExport, CancellationToken ct = default)
     {
-        string oldModsPath = Path.Combine(OldExportDir, "mods.json");
-        string newModsPath = Path.Combine(NewExportDir, "mods.json");
+        string oldModsPath = Path.Combine(oldExport, "mods.json");
+        string newModsPath = Path.Combine(newExport, "mods.json");
 
         if (!Validator.FileExists(oldModsPath) || !Validator.FileExists(newModsPath)) return [];
 
@@ -165,7 +175,8 @@ public static class ChangelogGenerator
         sb.AppendLine("</details>\n");
     }
 
-    private static async Task<List<FileEntry>> GetFolderDiffAsync(Dictionary<string, string> oldFiles, Dictionary<string, string> newFiles, CancellationToken ct = default)
+    private static async Task<List<FileEntry>> GetFolderDiffAsync(string oldExport, string newExport, Dictionary<string, string> oldFiles, Dictionary<string, string> newFiles,
+        CancellationToken ct = default)
     {
         HashSet<string> allKeys = new(oldFiles.Keys);
         allKeys.UnionWith(newFiles.Keys);
@@ -188,8 +199,8 @@ public static class ChangelogGenerator
             {
                 case true when newExists:
                 {
-                    string oldFile = Path.Combine(OldExportDir, oldPath!);
-                    string newFile = Path.Combine(NewExportDir, newPath!);
+                    string oldFile = Path.Combine(oldExport, oldPath!);
+                    string newFile = Path.Combine(newExport, newPath!);
 
                     if (!await FilesEqualAsync(oldFile, newFile, token))
                     {
@@ -294,7 +305,7 @@ public static class ChangelogGenerator
         };
     }
 
-    private static string BuildEntry(FileEntry entry, SectionType section)
+    private static string BuildEntry(string oldExport, string newExport, FileEntry entry, SectionType section)
     {
         string path = string.Join(Path.DirectorySeparatorChar.ToString(), entry.RelativePath.Split(Path.DirectorySeparatorChar).Skip(1));
         StringBuilder sb = new();
@@ -302,8 +313,8 @@ public static class ChangelogGenerator
         sb.AppendLine($"<summary>{(section == SectionType.Unknown ? entry.PrettyPath ?? entry.RelativePath : path)}</summary>\n");
         sb.AppendLine("```diff");
 
-        string oldPath = Path.Combine(OldExportDir, entry.RelativePath);
-        string newPath = Path.Combine(NewExportDir, entry.RelativePath);
+        string oldPath = Path.Combine(oldExport, entry.RelativePath);
+        string newPath = Path.Combine(newExport, entry.RelativePath);
 
         string oldText = File.Exists(oldPath) ? File.ReadAllText(oldPath) : string.Empty;
         string newText = File.Exists(newPath) ? File.ReadAllText(newPath) : string.Empty;

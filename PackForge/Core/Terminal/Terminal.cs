@@ -11,7 +11,9 @@ public static class Terminal
 
     static Terminal()
     {
-        TestCommand.Register(Dispatcher);
+        //TestCommand.Register(Dispatcher);
+        //GitCommand.Register(Dispatcher);
+        ChangelogCommand.Register(Dispatcher);
     }
 
     public static async Task RunCommand(string input)

@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PackForge", "PackForge\PackForge.csproj", "{A7F83E4A-D4CE-4B5E-AFF0-212E73E85DBD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PackForgeUnitTests", "PackForgeUnitTests\PackForgeUnitTests.csproj", "{2FB0756B-325F-4D6E-BBB5-2D1A4D96BFBA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A7F83E4A-D4CE-4B5E-AFF0-212E73E85DBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A7F83E4A-D4CE-4B5E-AFF0-212E73E85DBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A7F83E4A-D4CE-4B5E-AFF0-212E73E85DBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A7F83E4A-D4CE-4B5E-AFF0-212E73E85DBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2FB0756B-325F-4D6E-BBB5-2D1A4D96BFBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2FB0756B-325F-4D6E-BBB5-2D1A4D96BFBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2FB0756B-325F-4D6E-BBB5-2D1A4D96BFBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2FB0756B-325F-4D6E-BBB5-2D1A4D96BFBA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
