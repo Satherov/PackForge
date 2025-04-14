@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -32,8 +33,8 @@ public static class FileHelper
 
         try
         {
-            string rootFolder = Path.Combine(destinationFolder!, folderName ?? "Unknown", version ?? "0.0.0");
-            if (Directory.Exists(rootFolder)) return rootFolder;
+            string rootFolder = Path.Combine(destinationFolder, folderName, version);
+            if (Directory.Exists(rootFolder)) Directory.Delete(rootFolder, true);
             Directory.CreateDirectory(rootFolder);
             await CleanPermissionsAsync(rootFolder);
             return rootFolder;
@@ -48,7 +49,7 @@ public static class FileHelper
     {
         if (!Validator.DirectoryExists(rootPath)) return;
 
-        string overwritesFolderPath = Path.Combine(rootPath, "overwrites");
+        string overwritesFolderPath = Path.Combine(rootPath, "overrides");
         if (Validator.DirectoryExists(overwritesFolderPath, null))
             Directory.Delete(overwritesFolderPath, true);
 
@@ -57,34 +58,13 @@ public static class FileHelper
 
         foreach (string directory in Directory.GetDirectories(rootPath))
         {
-            string directoryName = Path.GetFileName(directory);
-            if (string.Equals(directoryName, "overwrites", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            bool isEmpty = !Validator.DirectoryEmpty(directory, null);
-            bool containsExcludedName = directoryName.Contains("shaderpacks", StringComparison.OrdinalIgnoreCase) ||
-                                        directoryName.Contains("resourcepacks", StringComparison.OrdinalIgnoreCase);
-
-            if (isEmpty || containsExcludedName)
-            {
+            string dirName = Path.GetFileName(directory);
+            if(dirName == "overrides") continue;
+            
+            if(Validator.DirectoryEmpty(directory, null))
                 Directory.Delete(directory, true);
-            }
             else
-            {
-                string destination = Path.Combine(overwritesFolderPath, directoryName);
-
-                if (Validator.DirectoryExists(destination, null))
-                    destination = Path.Combine(overwritesFolderPath, $"{directoryName}_{Guid.NewGuid():N}");
-
-                Directory.Move(directory, destination);
-            }
-        }
-
-        foreach (string file in Directory.GetFiles(rootPath))
-        {
-            string fileName = Path.GetFileName(file);
-            if (!string.Equals(fileName, "manifest.json", StringComparison.OrdinalIgnoreCase))
-                File.Delete(file);
+                Directory.Move(directory, Path.Combine(overwritesFolderPath, dirName));
         }
     }
 
@@ -103,7 +83,7 @@ public static class FileHelper
                 SuggestedStartLocation = startLocation != null ? await window.StorageProvider.TryGetFolderFromPathAsync(startLocation) : null
             });
             if (focusWindow != null) await WindowHelper.FocusWindow(() => focusWindow);
-            return !folderResult.Any() ? string.Empty : folderResult.Single().Path.LocalPath;
+            return !folderResult.Any() ? string.Empty : folderResult.Single().Path.LocalPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
         catch
         {
@@ -166,8 +146,8 @@ public static class FileHelper
             File.Delete(parent.FilePath);
         }
 
-        if (mod.DataOnly && DataManager.FlagDataOnly)
-            Log.Warning($"{prefix}'{Path.GetFileName(parent.FilePath)}' contains only data");
+        if (!mod.OnlyJarInJars && !(mod.Classes <= -1) && mod.Classes < DataManager.FlagDataOnly)
+            Log.Warning($"{prefix}'{Path.GetFileName(parent.FilePath)}' contains less classes than {DataManager.FlagDataOnly} classes: {mod.Classes}");
 
         if (mod.McreatorFragments && DataManager.FlagMcreator)
             Log.Warning($"{prefix}'{Path.GetFileName(parent.FilePath)}' contains MCreator fragments");
@@ -176,121 +156,207 @@ public static class FileHelper
         foreach (ModInfo jarMod in mod.JarInJars) ApplyResults(jarMod, client, true, mod);
     }
 
-    public static async Task CopyFilesAsync(string sourceDir, string targetDir, RuleSet? ruleSet, CancellationToken ct)
+    public static async Task CopyFilesAsync(string sourceDir, string targetDir, RuleSet? ruleSet, CancellationToken ct = default)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         if (!Validator.DirectoryExists(sourceDir)) return;
         Directory.CreateDirectory(targetDir);
         Log.Debug($"Copying files from {sourceDir} to {targetDir}");
 
-        List<string> fileFilter = ruleSet?.Rules.Select(r => r.FilePath).ToList() ?? [];
-        bool isWhitelist = ruleSet?.Whitelist == true;
 
         SemaphoreSlim semaphore = new(4);
 
-        if (isWhitelist)
-        {
-            foreach (Rule rule in ruleSet!.Rules)
-            {
-                string sourcePath = Path.Combine(sourceDir, rule.FilePath);
-                string destPath = Path.Combine(targetDir, rule.FilePath);
-
-                if ((rule.Attributes & FileAttributes.Directory) != 0 && Directory.Exists(sourcePath))
-                {
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                        await CopyFolderRobocopyAsync(sourcePath, destPath, fileFilter, ct);
-                    else
-                        await CopyFolderRecursiveAsync(sourcePath, destPath, fileFilter, semaphore, ct);
-                }
-                else if (File.Exists(sourcePath))
-                {
-                    await CopySingleFileAsync(sourcePath, targetDir, [], semaphore, ct);
-                }
-            }
-        }
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            await CopyFolderRobocopyAsync(sourceDir,targetDir, ruleSet, ct);
         else
-        {
-            string[] entries = Directory.GetFileSystemEntries(sourceDir);
-            IEnumerable<Task> tasks = entries.Select(async entry =>
-            {
-                if (fileFilter.Contains(Path.GetFileName(entry))) return;
-
-                if ((File.GetAttributes(entry) & FileAttributes.Directory) != 0)
-                {
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                        await CopyFolderRobocopyAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)), fileFilter, ct);
-                    else
-                        await CopyFolderRecursiveAsync(entry, Path.Combine(targetDir, Path.GetFileName(entry)), fileFilter, semaphore, ct);
-                }
-                else
-                {
-                    await CopySingleFileAsync(entry, targetDir, [], semaphore, ct);
-                }
-            });
-
-            await Task.WhenAll(tasks);
-        }
+            await CopyFolderRecursiveAsync(sourceDir, targetDir, ruleSet, sourceDir, semaphore, ct);
 
         stopwatch.Stop();
         Log.Debug($"Finished copying files in {stopwatch.ElapsedMilliseconds}ms");
     }
 
-    private static async Task CopyFolderRobocopyAsync(string sourcePath, string destPath, List<string> fileFilter, CancellationToken ct)
+    private static async Task CopyFolderRobocopyAsync(string sourceDir, string targetDir, RuleSet? ruleSet, CancellationToken ct = default)
     {
-        if (!Directory.Exists(sourcePath)) return;
-        Directory.CreateDirectory(destPath);
-        string argsBase = $"\"{sourcePath}\" \"{destPath}\" /E /NFL /NDL /NJH /NJS /NC /NS";
-        string excludes = string.Join(" ", fileFilter.Select(f => $"\"{f}\""));
-        string args = $"{argsBase} /R:3 /W:5{(fileFilter.Count != 0 ? $" /XD {excludes} /XF {excludes}" : null)}";
-        try
+        if (!Directory.Exists(sourceDir))
+            return;
+
+        sourceDir = sourceDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        targetDir = targetDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        
+        Directory.CreateDirectory(targetDir);
+        Log.Debug($"Using Robocopy to copy files from {sourceDir} to {targetDir}");
+        
+        
+        if (ruleSet is { Whitelist: true })
         {
-            using Process process = new();
-            process.StartInfo.FileName = "robocopy";
-            process.StartInfo.Arguments = args;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.UseShellExecute = false;
-            process.Start();
-            await Task.Run(() => process.WaitForExit(), ct);
+            List<Task> tasks = [];
+            List<string> files = [];
+            
+            foreach (Rule rule in ruleSet.Rules)
+            {
+                if(rule.Attributes == FileAttributes.Directory)
+                {
+                    string sourceFolder = Path.Combine(sourceDir, rule.FilePath);
+                    string destFolder = Path.Combine(targetDir, rule.FilePath);
+                    Directory.CreateDirectory(destFolder);
+                    string args = $"\"{sourceFolder}\" \"{destFolder}\" /E /NFL /NDL /NJH /NJS /NC /NS";
+                    Log.Debug($"Starting Robocopy for folder: {args}");
+                    tasks.Add(RunRobocopy(args, ct));
+                }
+                else
+                {
+                    files.Add(Path.GetFileName(rule.FilePath));
+                }
+            }
+            
+            if(tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            if (files.Count <= 0) return;
+            {
+                Directory.CreateDirectory(targetDir);
+                string args = $"\"{sourceDir}\" \"{targetDir}\" \"{string.Join(" ", files)}\" /NFL /NDL /NJH /NJS /NC /NS";
+                Log.Debug($"Starting Robocopy for file: {args}");
+                await RunRobocopy(args, ct);
+            }
         }
-        catch
+        else
         {
-            // ignored
+            StringBuilder argBuilder = new();
+            argBuilder.Append($"\"{sourceDir}\" \"{targetDir}\" /S /NFL /NDL /NJH /NJS /NC /NS");
+
+            if (ruleSet != null)
+            {
+                List<string> excludedDirs = [];
+                List<string> excludedFiles = [];
+
+                foreach (Rule rule in ruleSet.Rules)
+                {
+                    if (rule.Attributes.HasFlag(FileAttributes.Directory))
+                        excludedDirs.Add($"\"{Path.Combine(sourceDir, rule.FilePath)}\"");
+                    else
+                        excludedFiles.Add($"\"{Path.Combine(sourceDir, rule.FilePath)}\"");
+                }
+                if (excludedDirs.Count > 0)
+                    argBuilder.Append(" /XD " + string.Join(" ", excludedDirs));
+                if (excludedFiles.Count > 0)
+                    argBuilder.Append(" /XF " + string.Join(" ", excludedFiles));
+            }
+
+            string args = argBuilder.ToString();
+            Log.Debug($"Robocopy arguments: {args}");
+            await RunRobocopy(args, ct);
+        }
+        
+        return;
+
+        async Task RunRobocopy(string arguments, CancellationToken token)
+        {
+            try
+            {
+                using Process process = new();
+                process.StartInfo.FileName = "robocopy";
+                process.StartInfo.Arguments = arguments;
+                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.UseShellExecute = false;
+                process.Start();
+                await process.WaitForExitAsync(token);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Robocopy process failed: {ex.Message}");
+            }
         }
     }
 
-    private static async Task CopyFolderRecursiveAsync(string sourcePath, string destPath, List<string> fileFilter, SemaphoreSlim semaphore, CancellationToken ct)
+    private static async Task CopyFolderRecursiveAsync(string sourceDir, string targetDir, RuleSet? ruleSet, string baseSource, SemaphoreSlim semaphore, CancellationToken ct = default)
     {
-        if (!Directory.Exists(sourcePath)) return;
-        Directory.CreateDirectory(destPath);
-        string[] files = Directory.GetFiles(sourcePath);
-        List<Task> fileTasks = files.Select(filePath => CopySingleFileAsync(filePath, destPath, fileFilter, semaphore, ct)).ToList();
-        await Task.WhenAll(fileTasks);
-        string[] subDirs = Directory.GetDirectories(sourcePath);
-        List<Task> subDirTasks = subDirs.Select(subDir =>
+        if (!Directory.Exists(sourceDir))
+            return;
+
+        Directory.CreateDirectory(targetDir);
+
+        string[] files = Directory.GetFiles(sourceDir);
+        List<Task> fileTasks = [];
+        foreach (string file in files)
         {
-            string subDirName = Path.GetFileName(subDir);
-            string newDestPath = Path.Combine(destPath, subDirName);
-            return CopyFolderRecursiveAsync(subDir, newDestPath, fileFilter, semaphore, ct);
-        }).ToList();
+            string relativeFile = Path.GetRelativePath(baseSource, file);
+            bool skip = false;
+            if (ruleSet != null)
+            {
+                if (ruleSet.Whitelist)
+                {
+                    if (!ruleSet.Rules.Any(r => !r.Attributes.HasFlag(FileAttributes.Directory) &&
+                         string.Equals(r.FilePath, relativeFile, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        skip = true;
+                    }
+                }
+                else
+                {
+                    if (ruleSet.Rules.Any(r => !r.Attributes.HasFlag(FileAttributes.Directory) &&
+                         string.Equals(r.FilePath, relativeFile, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        skip = true;
+                    }
+                }
+            }
+            if (!skip)
+                fileTasks.Add(CopySingleFileAsync(file, targetDir, semaphore, ct));
+        }
+        await Task.WhenAll(fileTasks);
+
+        string[] subDirs = Directory.GetDirectories(sourceDir);
+        List<Task> subDirTasks = [];
+        foreach (string subDir in subDirs)
+        {
+            string relativeDir = Path.GetRelativePath(baseSource, subDir);
+            bool skip = false;
+            if (ruleSet != null)
+            {
+                if (ruleSet.Whitelist)
+                {
+                    if (!ruleSet.Rules.Any(r => r.Attributes.HasFlag(FileAttributes.Directory) &&
+                         (string.Equals(r.FilePath, relativeDir, StringComparison.OrdinalIgnoreCase) ||
+                          relativeDir.StartsWith(r.FilePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))))
+                    {
+                        skip = true;
+                    }
+                }
+                else
+                {
+                    if (ruleSet.Rules.Any(r => r.Attributes.HasFlag(FileAttributes.Directory) &&
+                         (string.Equals(r.FilePath, relativeDir, StringComparison.OrdinalIgnoreCase) ||
+                          relativeDir.StartsWith(r.FilePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))))
+                    {
+                        skip = true;
+                    }
+                }
+            }
+
+            if (skip) continue;
+            
+            string subFolderName = Path.GetFileName(subDir);
+            string newDestPath = Path.Combine(targetDir, subFolderName);
+            subDirTasks.Add(CopyFolderRecursiveAsync(subDir, newDestPath, ruleSet, baseSource, semaphore, ct));
+        }
         await Task.WhenAll(subDirTasks);
     }
 
-    private static async Task CopySingleFileAsync(string sourceFile, string destFolder, List<string> fileFilter, SemaphoreSlim semaphore, CancellationToken ct)
+    private static async Task CopySingleFileAsync(string sourceFile, string destFolder, SemaphoreSlim semaphore, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         string fileName = Path.GetFileName(sourceFile);
-        if (fileFilter.Contains(fileName)) return;
         string destFile = Path.Combine(destFolder, fileName);
+
         if (File.Exists(destFile))
+        {
             try
             {
                 FileInfo destInfo = new(destFile);
                 destInfo.Attributes &= ~FileAttributes.ReadOnly;
             }
-            catch
-            {
-                // ignored
-            }
+            catch { }
+        }
 
         await semaphore.WaitAsync(ct);
         try
