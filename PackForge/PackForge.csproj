@@ -37,26 +37,12 @@
         <PackageReference Include="Squid-Box.SevenZipSharp" Version="1.6.2.24"/>
         <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.1"/>
         <PackageReference Include="Tomlyn" Version="0.18.0"/>
+        <PackageReference Include="xunit.abstractions" Version="2.0.3" />
     </ItemGroup>
-
-    <ItemGroup>
-        <Compile Update="Windows\MainWindow.axaml.cs">
-            <DependentUpon>MainWindow.axaml</DependentUpon>
-            <SubType>Code</SubType>
-        </Compile>
-        <Compile Update="Windows\OverwriteWindow.axaml.cs">
-            <DependentUpon>OverrideWindow.axaml</DependentUpon>
-            <SubType>Code</SubType>
-        </Compile>
-    </ItemGroup>
-
+    
     <ItemGroup>
         <None Update="Libs\7z.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Folder Include="obj\Debug\net9.0\Avalonia\"/>
     </ItemGroup>
 </Project>

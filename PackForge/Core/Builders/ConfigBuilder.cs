@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using PackForge.Core.Data;
 using PackForge.Core.Util;
 
 namespace PackForge.Core.Builders;
@@ -14,20 +15,15 @@ public static class ConfigBuilder
         Dictionary<string, object> modDict = new();
         foreach (ModInfo mod in modInfos)
         {
-            string key = !string.IsNullOrWhiteSpace(mod.Name) ? mod.Name : Path.GetFileName(mod.FilePath);
+            string key = !string.IsNullOrWhiteSpace(mod.Metadata.DisplayName) ? mod.Metadata.DisplayName : Path.GetFileName(mod.FilePath);
             modDict[key] = new
             {
-                modId = mod.ModId,
-                version = mod.Version
+                modId = mod.Metadata.ModId,
+                version = mod.Metadata.Version
             };
         }
 
-        JsonSerializerOptions options = new()
-        {
-            WriteIndented = true
-        };
-
-        string json = JsonSerializer.Serialize(modDict, options);
+        string json = JsonSerializer.Serialize(modDict, DataManager.JsonOptions);
 
         await File.WriteAllTextAsync(filePath, json, ct);
     }

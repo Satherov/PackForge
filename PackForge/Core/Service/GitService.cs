@@ -20,8 +20,8 @@ namespace PackForge.Core.Service;
 
 public static partial class GitService
 {
-    public static readonly string TempRepoPath = Path.Combine(Path.GetTempPath(), "PackForge", "TempRepo");
-
+    public static readonly string GitRepoPath = Path.Combine(App.AppDataPath, "github");
+    
     public record GitHubRepoInfo
     {
         public string Owner { get; set; } = string.Empty;
@@ -81,86 +81,42 @@ public static partial class GitService
         string email = $"{username}@users.noreply.github.com";
         return new GitHubUserInfo(username, email);
     }
-
-    public static async Task DownloadOrUpdateRepoAsync(string url, CancellationToken ct = default)
+    
+    public static async Task CloneOrUpdateRepoAsync(string url, CancellationToken ct = default)
     {
-        Log.Information($"Downloading repo from {url}");
+        if (Directory.Exists(GitRepoPath) && Repository.IsValid(GitRepoPath))
+            await UpdateRepoAsync(url, ct);
+        else
+            await CloneRepoAsync(url, ct);
+    }
+
+    public static async Task CloneRepoAsync(string url, CancellationToken ct = default)
+    {
+        Log.Information("Cloning repository");
 
         string githubToken = await TokenManager.RetrieveTokenValueByTypeAsync(TokenType.GitHub);
-        if (Validator.IsNullOrWhiteSpace(githubToken))
+        if (string.IsNullOrWhiteSpace(githubToken))
             Log.Warning("GitHub token is not set");
 
         GitHubRepoInfo repoInfo = await GetGitHubRepoInfoAsync(url, githubToken, ct);
-        if (Validator.IsNullOrWhiteSpace(repoInfo.Owner) || Validator.IsNullOrWhiteSpace(repoInfo.RepoName))
+        if (string.IsNullOrWhiteSpace(repoInfo.Owner) || string.IsNullOrWhiteSpace(repoInfo.RepoName))
             return;
 
-        if (Validator.DirectoryExists(TempRepoPath))
-        {
-            if (Repository.IsValid(TempRepoPath))
-            {
-                using Repository repo = new(TempRepoPath);
-                string? remoteUrl = repo.Network.Remotes["origin"]?.Url;
+        if (Directory.Exists(GitRepoPath))
+            await Task.Run(DeleteTempRepo, ct);
 
-                if (string.Equals(repoInfo.Url, remoteUrl, StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Information("Updating existing repository");
-                    FetchOptions fetchOptions = new()
-                    {
-                        CredentialsProvider = (_, __, ___) => new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
-                    };
-
-                    try
-                    {
-                        await Task.Run(() =>
-                        {
-                            Commands.Fetch(repo, "origin", Array.Empty<string>(), fetchOptions, null);
-                            Branch? targetBranch = repo.Branches[$"origin/{repoInfo.DefaultBranch}"];
-
-                            Branch localBranch = repo.Branches[repoInfo.DefaultBranch];
-                            if (localBranch == null && targetBranch != null)
-                            {
-                                localBranch = repo.CreateBranch(repoInfo.DefaultBranch, targetBranch.Tip);
-                                repo.Branches.Update(localBranch, b => b.TrackedBranch = targetBranch.CanonicalName);
-                            }
-
-                            if (localBranch == null) return;
-                            Commands.Checkout(repo, localBranch);
-                            repo.Reset(ResetMode.Hard, localBranch.Tip);
-                        }, ct);
-
-                        Log.Information("Repository updated successfully");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error($"Failed to update repository: {ex.Message}");
-                    }
-
-                    return;
-                }
-
-                Log.Information("Repository URL mismatch. Deleting local folder.");
-                await Task.Run(DeleteTempRepo, ct);
-            }
-            else
-            {
-                Log.Information("Local folder exists but is not a valid Git repository. Deleting folder.");
-                await Task.Run(DeleteTempRepo, ct);
-            }
-        }
-
-        Log.Information("Cloning repository");
         CloneOptions cloneOptions = new()
         {
             BranchName = repoInfo.DefaultBranch,
-            FetchOptions =
-            {
-                CredentialsProvider = (_, __, ___) => new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
+            FetchOptions = {
+                CredentialsProvider = (_,_,_) => new UsernamePasswordCredentials {
+                    Username = "x-access-token", Password = githubToken }
             }
         };
 
         try
         {
-            await Task.Run(() => Repository.Clone(repoInfo.Url, TempRepoPath, cloneOptions), ct);
+            await Task.Run(() => Repository.Clone(repoInfo.Url, GitRepoPath, cloneOptions), ct);
             Log.Information("Repository cloned successfully");
         }
         catch (Exception ex)
@@ -169,32 +125,173 @@ public static partial class GitService
         }
     }
 
-    private static void DeleteTempRepo()
+    public static async Task UpdateRepoAsync(string url, CancellationToken ct = default)
     {
-        if (!Directory.Exists(TempRepoPath)) return;
+        Log.Information("Updating existing repository");
 
-        DirectoryInfo dirInfo = new(TempRepoPath);
-        foreach (FileInfo file in dirInfo.GetFiles("*", SearchOption.AllDirectories)) file.Attributes = FileAttributes.Normal;
-        Directory.Delete(TempRepoPath, true);
-    }
+        string githubToken = await TokenManager.RetrieveTokenValueByTypeAsync(TokenType.GitHub);
+        if (string.IsNullOrWhiteSpace(githubToken))
+            Log.Warning("GitHub token is not set");
 
-    public static async Task<bool> CommitFilesAsync(string token, IEnumerable<string> fileRelativePaths, string commitMessage, CancellationToken ct = default)
-    {
-        using Repository repo = new(TempRepoPath);
-
-        foreach (string relativePath in fileRelativePaths)
+        GitHubRepoInfo repoInfo = await GetGitHubRepoInfoAsync(url, githubToken, ct);
+        if (!Repository.IsValid(GitRepoPath))
         {
-            string fullPath = Path.Combine(TempRepoPath, relativePath);
-            if (Validator.FileExists(fullPath, LogEventLevel.Debug))
+            Log.Warning("Temp path is not a valid repo; falling back to clone");
+            await CloneRepoAsync(url, ct);
+            return;
+        }
+
+        using Repository repo = new(GitRepoPath);
+        Remote? remote = repo.Network.Remotes["origin"];
+        if (!string.Equals(remote?.Url, repoInfo.Url, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Warning("Remote URL mismatch; falling back to clone");
+            await CloneRepoAsync(url, ct);
+            return;
+        }
+
+        FetchOptions fetchOpts = new()
+        {
+            CredentialsProvider = (_,_,_) =>
+                new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
+        };
+
+        await Task.Run(() => Commands.Fetch(repo, "origin", Array.Empty<string>(), fetchOpts, null), ct);
+        Branch? remoteBranch = repo.Branches[$"origin/{repoInfo.DefaultBranch}"];
+        Branch? localBranch = repo.Branches[repoInfo.DefaultBranch]
+                              ?? repo.CreateBranch(repoInfo.DefaultBranch, remoteBranch.Tip);
+
+        repo.Branches.Update(localBranch, b => b.TrackedBranch = remoteBranch.CanonicalName);
+        Commands.Checkout(repo, localBranch);
+        repo.Reset(ResetMode.Hard, remoteBranch.Tip);
+        repo.Merge(remoteBranch, repo.Config.BuildSignature(DateTimeOffset.Now), new MergeOptions());
+
+        Log.Information("Repository updated successfully");
+    }
+    
+    public static async Task GetRepoStatusAsync(CancellationToken ct = default)
+    {
+        if (!Repository.IsValid(GitRepoPath))
+        {
+            Log.Warning($"No valid Git repository at {GitRepoPath}");
+            return;
+        }
+
+        await Task.Run(() =>
+        {
+            using Repository repo = new(GitRepoPath);
+            RepositoryStatus? status = repo.RetrieveStatus(new StatusOptions());
+
+            if (!status.Any())
+            {
+                Log.Information("Working directory clean");
+                return;
+            }
+
+            // Staged (index) changes
+            foreach (StatusEntry? e in status.Where(e =>
+                         e.State.HasFlag(FileStatus.NewInIndex)      ||
+                         e.State.HasFlag(FileStatus.ModifiedInIndex) ||
+                         e.State.HasFlag(FileStatus.DeletedFromIndex)||
+                         e.State.HasFlag(FileStatus.RenamedInIndex)  ||
+                         e.State.HasFlag(FileStatus.TypeChangeInIndex)))
+            {
+                Log.Information($"Staged:   {e.FilePath} ({e.State})");
+            }
+
+            // Unstaged (workdir) changes
+            foreach (StatusEntry? e in status.Where(e =>
+                         e.State.HasFlag(FileStatus.NewInWorkdir)       ||
+                         e.State.HasFlag(FileStatus.ModifiedInWorkdir)  ||
+                         e.State.HasFlag(FileStatus.DeletedFromWorkdir) ||
+                         e.State.HasFlag(FileStatus.RenamedInWorkdir)   ||
+                         e.State.HasFlag(FileStatus.TypeChangeInWorkdir)))
+            {
+                Log.Information($"Modified: {e.FilePath} ({e.State})");
+            }
+
+            // Untracked files
+            foreach (StatusEntry? e in status.Where(e => e.State == FileStatus.NewInWorkdir && e.State.HasFlag(FileStatus.Ignored) == false))
+            {
+                Log.Information($"Untracked:{e.FilePath}");
+            }
+
+            // Ignored files
+            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Ignored)))
+            {
+                Log.Information($"Ignored:  {e.FilePath}");
+            }
+
+            // Conflicts
+            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Conflicted)))
+            {
+                Log.Information($"Conflict: {e.FilePath}");
+            }
+        }, ct);
+    }
+    
+    public static async Task<int> StageAsync(string path, CancellationToken ct = default)
+    {
+        if (Validator.IsNullOrWhiteSpace(path)) return 0;
+        
+        if (!Repository.IsValid(GitRepoPath))
+        {
+            Log.Warning($"Cannot stage files: no valid repo at {GitRepoPath}");
+            return 0;
+        }
+
+        if (path.StartsWith(GitRepoPath, StringComparison.OrdinalIgnoreCase))
+        {
+            path = Path.GetRelativePath(GitRepoPath, path);
+        }
+
+        using Repository repo = new(GitRepoPath);
+        await Task.Run(() =>
+        {
+            string fullPath = Path.Combine(GitRepoPath, path);
+
+            if (Directory.Exists(fullPath))
+            {
+                string[] allFiles = Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories);
+                if (allFiles.Length > 0)
+                {
+                    Commands.Stage(repo, allFiles);
+                    Log.Debug($"Staged directory '{path}' ({allFiles.Length} files)");
+                    return 1;
+                }
+
+                Log.Warning($"Directory '{path}' is empty");
+                return 0;
+            }
+
+            if (File.Exists(fullPath))
             {
                 Commands.Stage(repo, fullPath);
-                Log.Debug($"Staging file: {relativePath}");
+                Log.Debug($"Staged file '{path}'");
+                return 1;
             }
-            else
-            {
-                Log.Warning($"File not found: {fullPath}");
-            }
-        }
+
+            Log.Warning($"Path not found: '{path}'");
+            return 0;
+        }, ct);
+        
+        return 1;
+    }
+
+    private static void DeleteTempRepo()
+    {
+        if (!Directory.Exists(GitRepoPath)) return;
+
+        DirectoryInfo dirInfo = new(GitRepoPath);
+        foreach (FileInfo file in dirInfo.GetFiles("*", SearchOption.AllDirectories)) file.Attributes = FileAttributes.Normal;
+        Directory.Delete(GitRepoPath, true);
+    }
+
+    public static async Task<bool> CommitAsync(string token, string commitMessage, CancellationToken ct = default)
+    {
+        if(Validator.IsNullOrWhiteSpace(token) || Validator.IsNullOrWhiteSpace(commitMessage)) return false;
+        
+        using Repository repo = new(GitRepoPath);
 
         if (repo.Index.Count == 0)
         {
@@ -250,15 +347,17 @@ public static partial class GitService
         return true;
     }
 
-    public static async Task PushCommits(string token, string url, CancellationToken ct = default)
+    public static async Task PushAsync(string token, string url, CancellationToken ct = default)
     {
-        if (!Repository.IsValid(TempRepoPath))
+        if(Validator.IsNullOrWhiteSpace(token) || Validator.IsNullOrWhiteSpace(url)) return;
+        
+        if (!Repository.IsValid(GitRepoPath))
         {
             Log.Warning("Push skipped: invalid Git repository.");
             return;
         }
 
-        using Repository repo = new(TempRepoPath);
+        using Repository repo = new(GitRepoPath);
 
         if (repo.Head?.Tip == null)
         {

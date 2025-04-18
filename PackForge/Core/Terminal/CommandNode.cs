@@ -11,7 +11,7 @@ public delegate Task CommandAction(CommandContext context);
 public abstract class CommandNodeBase(string name, CommandAction action)
 {
     public string Name { get; } = name;
-    public CommandAction? Action { get; } = action;
+    public CommandAction Action { get; } = action;
     private readonly List<CommandNodeBase> _children = [];
     public IReadOnlyList<CommandNodeBase> Children => _children;
 

@@ -29,8 +29,8 @@ public class OverwriteWindowViewModel : ReactiveObject
     public OverwriteWindowViewModel()
     {
         LoadData();
-        OpenClientFolderCommand = new AsyncRelayCommand(async () => ClientPath = await FileHelper.OpenFolderAsync(ClientPath, WindowHelper.OverwriteWindow));
-        OpenServerFolderCommand = new AsyncRelayCommand(async () => ServerPath = await FileHelper.OpenFolderAsync(ServerPath, WindowHelper.OverwriteWindow));
+        OpenClientFolderCommand = new AsyncRelayCommand(async () => ClientPath = await FileUtil.OpenFolderAsync(ClientPath, WindowHelper.OverwriteWindow));
+        OpenServerFolderCommand = new AsyncRelayCommand(async () => ServerPath = await FileUtil.OpenFolderAsync(ServerPath, WindowHelper.OverwriteWindow));
     }
 
     private void LoadData()

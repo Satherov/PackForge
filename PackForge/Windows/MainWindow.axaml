@@ -7,8 +7,8 @@
         Icon="/Assets/logo-dark.ico"
         Title="PackForge"
         Background="#1E1E2E"
-        Width="1440" Height="810"
-        WindowStartupLocation="CenterScreen">
+        Width="1920" Height="1080"
+        WindowStartupLocation="CenterOwner">
 
     <Window.Resources>
         <logger:ColorFormatter x:Key="ColorFormatter" />
@@ -16,7 +16,7 @@
 
     <!-- Main Grid -->
     <Viewbox Stretch="Uniform">
-        <Grid RowDefinitions="Auto,*" Width="1760" Height="990">
+        <Grid RowDefinitions="Auto,*" Width="1600" Height="900">
             <Grid Grid.Row="0" ColumnDefinitions="9*,2*">
                 <Border Grid.Column="0" Margin="10" CornerRadius="10" BorderThickness="1">
                     <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto">

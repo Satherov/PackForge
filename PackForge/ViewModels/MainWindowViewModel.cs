@@ -170,7 +170,7 @@ public partial class MainWindowViewModel : ObservableObject
         InitLogs();
         LoadData();
         _silentTask = TokenManager.IsTokenStored(TokenType.GitHub) && !Validator.IsNullOrWhiteSpace(GitHubLink, LogEventLevel.Debug)
-            ? GitService.DownloadOrUpdateRepoAsync(GitHubLink, Cts.Token)
+            ? GitService.CloneOrUpdateRepoAsync(GitHubLink, Cts.Token)
             : Task.CompletedTask;
         InitializeCommands();
     }
@@ -178,8 +178,8 @@ public partial class MainWindowViewModel : ObservableObject
     private void InitializeCommands()
     {
         KillTasksCommand = CreateCommand(CancelAllOperations);
-        OpenSourceFolderCommand = new AsyncRelayCommand(async () => SourceFolderPath = await Task.Run(() => FileHelper.OpenFolderAsync(SourceFolderPath)));
-        OpenDestinationFolderCommand = new AsyncRelayCommand(async () => DestinationFolderPath = await Task.Run(() => FileHelper.OpenFolderAsync(DestinationFolderPath)));
+        OpenSourceFolderCommand = new AsyncRelayCommand(async () => SourceFolderPath = await Task.Run(() => FileUtil.OpenFolderAsync(SourceFolderPath)));
+        OpenDestinationFolderCommand = new AsyncRelayCommand(async () => DestinationFolderPath = await Task.Run(() => FileUtil.OpenFolderAsync(DestinationFolderPath)));
         OpenGitHubRepoCommand = CreateCommand(() => OpenGitHubRepoLink(GitHubLink));
         FetchLoaderVersionCommand = CreateCommand(() => FetchLoaderVersionsAsync(LoaderType, MinecraftVersion));
 
@@ -209,7 +209,7 @@ public partial class MainWindowViewModel : ObservableObject
         ApplyFiltersCommand = CreateCommand(async () =>
         {
             if (Validator.DirectoryEmpty(SourceFolderPath)) return;
-            await FileHelper.ApplyFilters(Path.Combine(SourceFolderPath, "mods"), true, Cts.Token);
+            await FileUtil.ApplyFilters(Path.Combine(SourceFolderPath, "mods"), true, Cts.Token);
         });
 
         PushToGitHubCommand = CreateCommand(() => PushToGitHub(GitHubLink, _silentTask, Cts.Token));
@@ -359,7 +359,7 @@ public partial class MainWindowViewModel : ObservableObject
             Validator.IsNullOrWhiteSpace(packVersion))
             return;
 
-        string root = await FileHelper.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
+        string root = await FileUtil.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
 
         string export = Path.Join(sourceFolder, "local", "kubejs", "export");
         await ChangelogGenerator.GenerateFullChangelogAsync(root, export, packVersion, ct: ct);
@@ -367,7 +367,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private static async Task PushToGitHub(string? url, Task? silentCloneTask, CancellationToken ct = default)
     {
-        if (Validator.DirectoryEmpty(GitService.TempRepoPath) || Validator.IsNullOrWhiteSpace(url))
+        if (Validator.DirectoryEmpty(GitService.GitRepoPath) || Validator.IsNullOrWhiteSpace(url))
             return;
 
         if (silentCloneTask is { IsCompleted: false })
@@ -378,8 +378,8 @@ public partial class MainWindowViewModel : ObservableObject
 
         List<string> files =
         [
-            Path.Combine(GitService.TempRepoPath, "config", "bcc-common.toml"),
-            Path.Combine(GitService.TempRepoPath, "config", "crash_assistant", "modlist.json")
+            Path.Combine(GitService.GitRepoPath, "config", "bcc-common.toml"),
+            Path.Combine(GitService.GitRepoPath, "config", "crash_assistant", "modlist.json")
         ];
 
         StringBuilder autoCommitMessage = new();
@@ -387,8 +387,16 @@ public partial class MainWindowViewModel : ObservableObject
 
         string token = await TokenManager.RetrieveTokenValueByTypeAsync(TokenType.GitHub);
 
-        bool success = await GitService.CommitFilesAsync(token, files, autoCommitMessage.ToString(), ct);
-        if (success) await GitService.PushCommits(token, url, ct);
+        int staged = 0;
+        foreach (string file in files)
+        {
+            staged += await GitService.StageAsync(file, ct);
+        }
+
+        bool success = false;
+        if(staged > 0) success = await GitService.CommitAsync(token, autoCommitMessage.ToString(), ct);
+        
+        if (success) await GitService.PushAsync(token, url, ct);
     }
 
     private static async Task GenerateRepo(string repoUrl, Task? silentCloneTask, CancellationToken ct = default)
@@ -399,7 +407,7 @@ public partial class MainWindowViewModel : ObservableObject
             await silentCloneTask;
         }
 
-        await GitService.DownloadOrUpdateRepoAsync(repoUrl, ct);
+        await GitService.CloneOrUpdateRepoAsync(repoUrl, ct);
     }
 
     private string FinalPath(string? destinationPath)
@@ -407,38 +415,38 @@ public partial class MainWindowViewModel : ObservableObject
         return Validator.IsNullOrWhiteSpace(destinationPath) ? string.Empty : Path.Combine(destinationPath, $"{ModpackName ?? "unknown"}", $"{ModpackVersion ?? "0.0.0"}");
     }
 
-    private static async Task CopyFilesBasedOnRepoStatus(string sourceFolder, string targetDir, RuleSet baseRules, RuleSet localRules, RuleSet repoRules, string? overwritePath,
+    private static async Task CopyFilesBasedOnRepoStatus(string sourceFolder, string targetDir, List<Rule> baseRules, List<Rule> localRules, List<Rule> repoRules, string? overwritePath,
         CancellationToken ct)
     {
-        if (Validator.DirectoryExists(GitService.TempRepoPath))
+        if (Validator.DirectoryExists(GitService.GitRepoPath))
         {
-            Task copyRepoTask = FileHelper.CopyFilesAsync(GitService.TempRepoPath, targetDir, repoRules, ct);
-            Task copyFolderTask = FileHelper.CopyFilesAsync(sourceFolder, targetDir, localRules, ct);
+            Task copyRepoTask = FileCopyHelper.CopyFilesAsync(GitService.GitRepoPath, targetDir, repoRules, ct);
+            Task copyFolderTask = FileCopyHelper.CopyFilesAsync(sourceFolder, targetDir, localRules, ct);
             Task overwriteTask = Task.Delay(0, ct);
             if (Validator.DirectoryExists(overwritePath, LogEventLevel.Information))
-                overwriteTask = FileHelper.CopyFilesAsync(GitService.TempRepoPath, overwritePath, repoRules, ct);
+                overwriteTask = FileCopyHelper.CopyFilesAsync(GitService.GitRepoPath, overwritePath, repoRules, ct);
             await Task.WhenAll(copyRepoTask, copyFolderTask, overwriteTask);
         }
         else
         {
             Log.Warning("Invalid Repo target, falling back to local files. These files may not be up to date!");
-            await FileHelper.CopyFilesAsync(sourceFolder, targetDir, baseRules, ct);
+            await FileCopyHelper.CopyFilesAsync(sourceFolder, targetDir, baseRules, ct);
         }
     }
 
-    private static async Task GenerateConfigs(string sourceDir, string targetDir, string overwriteDir, string? curseforgeId, string packName, string packVersion,
+    public static async Task GenerateConfigs(string sourceDir, string targetDir, string overwriteDir, string? curseforgeId, string packName, string packVersion,
         CancellationToken ct = default)
     {
         curseforgeId ??= string.Empty;
 
         List<string> paths =
         [
-            GitService.TempRepoPath,
+            GitService.GitRepoPath,
             targetDir,
             overwriteDir
         ];
 
-        List<ModInfo> modInfos = await JarHelper.GetAllModData(Path.Combine(sourceDir, "mods"), ct);
+        List<ModInfo> modInfos = await JarUtil.GetJarInfoInDirectoryAsync(Path.Combine(sourceDir, "mods"), ct);
 
         foreach (string path in paths.Where(Directory.Exists))
         {
@@ -447,7 +455,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private async Task GenerateClientAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, string? mcVersion, string? loaderType,
+    public async Task GenerateClientAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, string? mcVersion, string? loaderType,
         string? loaderVersion, string? packName, string? packVersion, string? packAuthor, string? curseforgeId, CancellationToken ct)
     {
         if (Validator.IsNullOrWhiteSpace(sourceFolder) || Validator.IsNullOrWhiteSpace(destinationFolder) || Validator.IsNullOrWhiteSpace(gitHubRepoLink) ||
@@ -458,33 +466,33 @@ public partial class MainWindowViewModel : ObservableObject
         Stopwatch stopwatch = Stopwatch.StartNew();
         Log.Information($"Generating client files for {sourceFolder} to {destinationFolder}");
 
-        RuleSet baseRules = CreateRules();
-        RuleSet localRules = CreateRules(true);
-        RuleSet repoRules = CreateRules(true, true);
+        List<Rule> baseRules = CreateRules();
+        List<Rule> localRules = CreateRules(true);
+        List<Rule> repoRules = CreateRules(true, true);
 
-        string root = await FileHelper.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
+        string root = await FileUtil.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
         string targetDir = Path.Combine(root, $"{packName}-ClientExport");
         Directory.CreateDirectory(targetDir);
 
-        if (silentCloneTask != null) await GenerateRepo(gitHubRepoLink, silentCloneTask, ct);
+        await GenerateRepo(gitHubRepoLink, silentCloneTask, ct);
         await CopyFilesBasedOnRepoStatus(sourceFolder, targetDir, baseRules, localRules, repoRules, DataManager.ClientOverwritePath, ct);
-        await FileHelper.ApplyFilters(Path.Combine(targetDir, "mods"), true, ct);
+        await FileUtil.ApplyFilters(Path.Combine(targetDir, "mods"), true, ct);
 
         bool tryParse = TryParse(RecommendedRam, out int recommendedRam);
         await JsonBuilder.GenerateManifest(targetDir, mcVersion, packVersion, packAuthor, packName, loaderType, loaderVersion, tryParse ? recommendedRam : 0, ct);
 
         await GenerateConfigs(sourceFolder, targetDir, DataManager.ClientOverwritePath, curseforgeId, packName, packVersion, ct);
 
-        await FileHelper.CleanUpEmptyFoldersAsync(targetDir);
+        await FileUtil.CleanUpEmptyFoldersAsync(targetDir);
         Log.Information("Zipping client files");
-        await FileHelper.ZipFolderAsync(targetDir, Path.Combine(FinalPath(destinationFolder), $"{packName}-{packVersion}.zip"), ct);
+        await FileUtil.ZipFolderAsync(targetDir, Path.Combine(FinalPath(destinationFolder), $"{packName}-{packVersion}.zip"), ct);
         Log.Information("Successfully generated client files");
 
         stopwatch.Stop();
         Log.Information($"Client files generation took {stopwatch.ElapsedMilliseconds}ms");
     }
 
-    private async Task GenerateServerAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, string? loaderType,
+    public async Task GenerateServerAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, string? loaderType,
         string? loaderVersion, string? packName, string? packVersion, string? curseforgeId, CancellationToken ct)
     {
         if (Validator.IsNullOrWhiteSpace(sourceFolder) || Validator.IsNullOrWhiteSpace(destinationFolder) || Validator.IsNullOrWhiteSpace(gitHubRepoLink) ||
@@ -495,25 +503,25 @@ public partial class MainWindowViewModel : ObservableObject
         Stopwatch stopwatch = Stopwatch.StartNew();
         Log.Information($"Generating server files for {sourceFolder} to {destinationFolder}");
 
-        RuleSet baseRules = CreateRules(false, false, false);
-        RuleSet localRules = CreateRules(true, false, false);
-        RuleSet repoRules = CreateRules(true, true, false);
+        List<Rule> baseRules = CreateRules(false, false, false);
+        List<Rule> localRules = CreateRules(true, false, false);
+        List<Rule> repoRules = CreateRules(true, true, false);
 
-        string root = await FileHelper.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
+        string root = await FileUtil.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
         string targetDir = Path.Combine(root, $"{packName}-ServerExport");
         Directory.CreateDirectory(targetDir);
 
-        if (silentCloneTask != null) await GenerateRepo(gitHubRepoLink, silentCloneTask, ct);
+        await GenerateRepo(gitHubRepoLink, silentCloneTask, ct);
         await CopyFilesBasedOnRepoStatus(sourceFolder, targetDir, baseRules, localRules, repoRules, DataManager.ServerOverwritePath, ct);
-        await FileHelper.ApplyFilters(Path.Combine(targetDir, "mods"), false, ct);
+        await FileUtil.ApplyFilters(Path.Combine(targetDir, "mods"), false, ct);
 
         Log.Debug("Attempting modloader installer download from maven");
         await MavenService.DownloadLoader(loaderType, loaderVersion, targetDir);
 
-        if (Validator.DirectoryExists(TemplateFolderPath) && Directory.GetFiles(TemplateFolderPath).Length > 0)
+        if (Validator.DirectoryExists(TemplateFolderPath, LogEventLevel.Debug) && Directory.GetFiles(TemplateFolderPath).Length > 0)
         {
-            RuleSet templateRules = new([new Rule("README.md", FileAttributes.Normal)], false);
-            await FileHelper.CopyFilesAsync(TemplateFolderPath, targetDir, templateRules, ct);
+            List<Rule> templateRules = [new("README", "md", false)];
+            await FileCopyHelper.CopyFilesAsync(TemplateFolderPath, targetDir, templateRules, ct);
             Log.Information("Successfully copied template files");
         }
         else
@@ -524,37 +532,45 @@ public partial class MainWindowViewModel : ObservableObject
         await GenerateConfigs(sourceFolder, targetDir, DataManager.ServerOverwritePath, curseforgeId, packName, packVersion, ct);
 
         Log.Information("Zipping server files");
-        await FileHelper.ZipFolderAsync(targetDir, Path.Combine(FinalPath(destinationFolder), $"ServerFiles-{packVersion}.zip"), ct);
+        await FileUtil.ZipFolderAsync(targetDir, Path.Combine(FinalPath(destinationFolder), $"ServerFiles-{packVersion}.zip"), ct);
         Log.Information("Successfully generated server files");
 
         stopwatch.Stop();
         Log.Information($"Server files generation took {stopwatch.ElapsedMilliseconds}ms");
     }
 
-    private static RuleSet CreateRules(bool hasGitHub = false, bool isRepo = false, bool isClient = true)
+    private static List<Rule> CreateRules(bool hasGitHub = false, bool isRepo = false, bool isClient = true)
     {
-        RuleSet rules = new([
-            new Rule("config", FileAttributes.Directory),
-            new Rule("defaultconfigs", FileAttributes.Directory),
-            new Rule("kubejs", FileAttributes.Directory),
-            new Rule("packmenu", FileAttributes.Directory)
-        ], true);
+        List<Rule> ruleSet;
+        
+        List<Rule> rules = [
+            new("config", "directory", true),
+            new("defaultconfigs", "directory", true),
+            new("kubejs", "directory", true),
+            new("packmenu", "directory", true)
+        ];
 
-        RuleSet localServerRules = new([new Rule("mods", FileAttributes.Directory)], true);
+        List<Rule> localServerRules = [new("mods", "directory", true)];
 
-        RuleSet localClientRules = new([
-            new Rule("shaderpacks", FileAttributes.Directory),
-            new Rule("resourcepacks", FileAttributes.Directory),
-            new Rule("minecraftinstance.json", FileAttributes.Normal)
-        ], true);
+        List<Rule> localClientRules = [
+            new("shaderpacks", "directory", true),
+            new("resourcepacks", "directory", true),
+            new("minecraftinstance", "json", true)
+        ];
 
         if (isClient)
-            localServerRules.Rules.AddRange(localClientRules.Rules);
+            localServerRules.AddRange(localClientRules);
 
         if (hasGitHub)
-            return isRepo ? rules : localServerRules;
+        {
+            ruleSet = isRepo ? rules : localServerRules;
+            foreach (Rule rule in ruleSet) Log.Debug($"Using {rule}");
+            return ruleSet;
+        }
 
-        rules.Rules.AddRange(localServerRules.Rules);
-        return isRepo ? rules : localServerRules;
+        rules.AddRange(localServerRules);
+        ruleSet = isRepo ? rules : localServerRules;
+        foreach (Rule rule in ruleSet) Log.Debug($"Using {rule}");
+        return ruleSet;
     }
 }

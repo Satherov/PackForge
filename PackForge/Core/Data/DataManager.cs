@@ -18,7 +18,7 @@ public static class DataManager
     private static ConfigDataContainer _container = new();
     private static readonly string AppDataPath = Path.Combine(App.AppDataPath, "data", "config.json");
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    public static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,

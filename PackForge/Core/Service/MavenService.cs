@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using PackForge.Core.Util;
@@ -12,14 +11,18 @@ using static System.String;
 
 namespace PackForge.Core.Service;
 
-public static partial class MavenService
+public static class MavenService
 {
-    private static readonly HttpClient HttpClient = new();
     private const string NeoForgeMavenBaseUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge/";
     private const string ForgeMavenBaseUrl = "https://maven.minecraftforge.net/net/minecraftforge/forge/";
 
-    public static async Task<List<string>> FetchAvailableVersions(string loaderType, string mcVersion)
+    public static HttpClient HttpClient { get; set; } = new();
+
+
+    public static async Task<List<string>> FetchAvailableVersions(string? loaderType, string? mcVersion)
     {
+        if (Validator.IsNullOrWhiteSpace(loaderType) || Validator.IsNullOrWhiteSpace(mcVersion)) return [];
+        
         try
         {
             string metadataUrl = loaderType switch
@@ -32,10 +35,14 @@ public static partial class MavenService
             string xmlContent = await HttpClient.GetStringAsync(metadataUrl + "maven-metadata.xml");
             List<string> versionMatches = XDocument.Parse(xmlContent).Descendants("version").Select(e => e.Value).ToList();
 
+            Log.Debug($"Fetched {versionMatches.Count} versions from Maven metadata XML for {loaderType}");
+            
+            Log.Debug($"Minecraft Version: {mcVersion}");
+            
             if (loaderType.Equals("NeoForge"))
             {
-                Log.Debug($"mcVersion: {mcVersion}");
-
+                Log.Debug($"Using NeoForge versioning scheme");
+                
                 string[] versionParts = mcVersion.Split('.');
                 mcVersion = versionParts.Length switch
                 {
@@ -47,7 +54,7 @@ public static partial class MavenService
                     _ => $"{versionParts[1]}.0"
                 };
 
-                Log.Debug($"mcVersion: {mcVersion}");
+                Log.Debug($"Minecraft Version after schema conversion: {mcVersion}");
             }
 
             string expectedPrefix = loaderType switch
@@ -82,21 +89,27 @@ public static partial class MavenService
     {
         if (Validator.IsNullOrWhiteSpace(loaderType) || Validator.IsNullOrWhiteSpace(loaderVersion) || !Validator.DirectoryExists(savePath)) return;
 
-        string loader = Join("-", loaderType!, loaderVersion);
+        string loader = Join("-", loaderType, loaderVersion).ToLowerInvariant();
+        
+        Log.Debug($"Downloading {loader} from Maven");
 
         string installerUrl = loaderType switch
         {
-            "NeoForge" => $"{NeoForgeMavenBaseUrl}{loaderVersion}/{loader.ToLowerInvariant()}-installer.jar",
-            "Forge" => $"{ForgeMavenBaseUrl}{loaderVersion}/{loader.ToLowerInvariant()}-installer.jar",
+            "NeoForge" => $"{NeoForgeMavenBaseUrl}{loaderVersion}/{loader}-installer.jar",
+            "Forge" => $"{ForgeMavenBaseUrl}{loaderVersion}/{loader}-installer.jar",
             _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
+        
+        Log.Debug($"Installer URL: {installerUrl}");
 
         string destinationFile = loaderType switch
         {
-            "NeoForge" => Path.Join(savePath!, $"{loader}-installer.jar"),
-            "Forge" => Path.Join(savePath!, $"{loader}-installer.jar"),
+            "NeoForge" => Path.Join(savePath, $"{loader}-installer.jar"),
+            "Forge" => Path.Join(savePath, $"{loader}-installer.jar"),
             _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
+        
+        Log.Debug($"Destination file: {destinationFile}");
 
         try
         {
@@ -110,8 +123,4 @@ public static partial class MavenService
             Log.Error($"Failed to download {loader}: {ex.Message}");
         }
     }
-
-
-    [GeneratedRegex(@"<version>(?<version>\d+\.\d+\.\d+(?:\.\d+)?(?:-[a-zA-Z0-9.\-]+)?)</version>")]
-    private static partial Regex Version();
 }
