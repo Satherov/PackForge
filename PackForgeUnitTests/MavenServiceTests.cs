@@ -108,7 +108,7 @@ public class MavenServiceTests
         const string loaderType = "Forge";
         const string loaderVersion = "1.20-1";
         const string loaderName = $"{loaderType}-{loaderVersion}";
-        string expectedFileName = Path.Combine(tempDir.DirectoryPath, $"{loaderName}-installer.jar");
+        string expectedFileName = Path.Combine(tempDir.DirectoryPath, $"{loaderName}-installer.jar").ToLowerInvariant();
         byte[] fakeData = [1, 2, 3, 4];
 
         MavenService.HttpClient = CreateHttpClient(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -128,7 +128,7 @@ public class MavenServiceTests
         const string loaderType = "NeoForge";
         const string loaderVersion = "1.0.0";
         const string loaderName = $"{loaderType}-{loaderVersion}";
-        string expectedFileName = Path.Combine(tempDir.DirectoryPath, $"{loaderName}-installer.jar");
+        string expectedFileName = Path.Combine(tempDir.DirectoryPath, $"{loaderName}-installer.jar").ToLowerInvariant();
         byte[] fakeData = [5, 6, 7, 8];
 
         MavenService.HttpClient = CreateHttpClient(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
