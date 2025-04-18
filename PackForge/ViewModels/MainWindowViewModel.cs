@@ -362,7 +362,7 @@ public partial class MainWindowViewModel : ObservableObject
         string root = await FileUtil.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
 
         string export = Path.Join(sourceFolder, "local", "kubejs", "export");
-        await ChangelogGenerator.GenerateFullChangelogAsync(root, export, packVersion, ct: ct);
+        await ChangelogGenerator.GenerateFullChangelogAsync(root, export, packName, packVersion, ct: ct);
     }
 
     private static async Task PushToGitHub(string? url, Task? silentCloneTask, CancellationToken ct = default)

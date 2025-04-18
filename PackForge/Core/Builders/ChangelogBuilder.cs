@@ -45,12 +45,15 @@ public record ModEntry(string Name, string NewVersion, string OldVersion);
 public static class ChangelogGenerator
 {
     public static readonly string ChangelogPath = Path.Combine(App.AppDataPath, "data", "changelog");
-    public static readonly string OldExportDir = Path.Combine(ChangelogPath, "export-old");
-    public static readonly string NewExportDir = Path.Combine(ChangelogPath, "export-new");
 
-    public static async Task GenerateFullChangelogAsync(string changelogPath, string? exportSourcePath, string version, string? oldVersion = null, CancellationToken ct = default)
+    public static async Task GenerateFullChangelogAsync(string changelogPath, string? exportSourcePath, string modpackName, string version, string? oldVersion = null, CancellationToken ct = default)
     {
-        if (!Validator.DirectoryExists(OldExportDir, null) && !Validator.DirectoryExists(NewExportDir, null) &&
+        if (Validator.IsNullOrWhiteSpace(modpackName)) return;
+
+        string oldExportDir = Path.Combine(ChangelogPath, modpackName, "export-old");
+        string newExportDir = Path.Combine(ChangelogPath, modpackName, "export-new");
+        
+        if (!Validator.DirectoryExists(oldExportDir, null) && !Validator.DirectoryExists(newExportDir, null) &&
             Validator.IsNullOrWhiteSpace(exportSourcePath, LogEventLevel.Debug) && oldVersion == null)
             return;
 
@@ -61,25 +64,25 @@ public static class ChangelogGenerator
 
         if (oldVersion == null)
         {
-            if (!Validator.DirectoryExists(OldExportDir))
+            if (!Validator.DirectoryExists(oldExportDir))
             {
                 Log.Warning("Old export directory does not exist, if this is your first time running the generator, do another kubejs export and then run it again");
-                await FileCopyHelper.CopyFilesAsync(exportSourcePath!, OldExportDir, null, ct);
+                await FileCopyHelper.CopyFilesAsync(exportSourcePath!, oldExportDir, null, ct);
                 return;
             }
 
-            if (!Validator.DirectoryExists(NewExportDir))
+            if (!Validator.DirectoryExists(newExportDir))
             {
                 Log.Information("Collecting new export files");
-                await FileCopyHelper.CopyFilesAsync(exportSourcePath!, NewExportDir, null, ct);
+                await FileCopyHelper.CopyFilesAsync(exportSourcePath!, newExportDir, null, ct);
             }
 
             Log.Debug("Creating versioned export");
-            copyTask = FileCopyHelper.CopyFilesAsync(NewExportDir, Path.Combine(ChangelogPath, $"export-{version}"), null, ct);
+            copyTask = FileCopyHelper.CopyFilesAsync(newExportDir, Path.Combine(ChangelogPath, $"export-{version}"), null, ct);
         }
 
-        string oldExport = oldVersion == null ? OldExportDir : Path.Combine(ChangelogPath, $"export-{oldVersion}");
-        string newExport = oldVersion == null ? NewExportDir : Path.Combine(ChangelogPath, $"export-{version}");
+        string oldExport = oldVersion == null ? oldExportDir : Path.Combine(ChangelogPath, $"export-{oldVersion}");
+        string newExport = oldVersion == null ? newExportDir : Path.Combine(ChangelogPath, $"export-{version}");
 
         Log.Debug($"Old export: {oldExport}");
         Log.Debug($"New export: {newExport}");
@@ -146,8 +149,8 @@ public static class ChangelogGenerator
         Log.Debug("Waiting for versioned export to finish");
         await copyTask;
         Log.Debug("Cleaning up old export directories");
-        Directory.Delete(OldExportDir, true);
-        Directory.Move(NewExportDir, OldExportDir);
+        Directory.Delete(oldExportDir, true);
+        Directory.Move(newExportDir, oldExportDir);
     }
 
     internal static async Task<List<ModEntry>> GetModsDiffAsync(string oldExport, string newExport, CancellationToken ct = default)
@@ -279,15 +282,10 @@ public static class ChangelogGenerator
                 return new FileEntry(key, FileChangedType.Added);
             }
 
-            return null;
+            throw new InvalidOperationException($"Unexpected file state for key: {key}");
         }, executionOptions);
-
-        // Block to collect non-null FileEntry results.
-        ActionBlock<FileEntry> collectBlock = new(entry =>
-        {
-            if (entry != null)
-                diffs.Add(entry);
-        }, executionOptions);
+        
+        ActionBlock<FileEntry> collectBlock = new(entry => { diffs.Add(entry); }, executionOptions);
 
         // Link the pipeline.
         processBlock.LinkTo(collectBlock, new DataflowLinkOptions { PropagateCompletion = true });
