@@ -127,7 +127,7 @@ Server starters or readme files
    - Zip the files
    
 4. **Generate Changelog**: This will generate a changelog based on the two KubeJs exports.
-   - The old export should already be present
+   - The old export should already be present (When running this for the very first time, check [changelog init](#changelog-commands))
    - The new export will be copied from the source folder
    - The changelog will be generated in the destination folder
    
