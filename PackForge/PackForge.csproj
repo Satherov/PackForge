@@ -37,9 +37,9 @@
         <PackageReference Include="Squid-Box.SevenZipSharp" Version="1.6.2.24"/>
         <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.1"/>
         <PackageReference Include="Tomlyn" Version="0.18.0"/>
-        <PackageReference Include="xunit.abstractions" Version="2.0.3" />
+        <PackageReference Include="xunit.abstractions" Version="2.0.3"/>
     </ItemGroup>
-    
+
     <ItemGroup>
         <None Update="Libs\7z.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

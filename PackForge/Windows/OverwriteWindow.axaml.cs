@@ -16,12 +16,12 @@ public partial class OverwriteWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        Log.Information("Saving overwrite state...");
+        Log.Debug("Saving overwrite state...");
 
-        if (DataContext is OverwriteWindowViewModel vm)
+        if (DataContext is FilterWindowViewModel vm)
         {
             vm.SaveData();
-            Log.Information("Overwrite state saved");
+            Log.Debug("Overwrite state saved");
         }
         else
         {

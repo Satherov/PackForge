@@ -1,12 +1,10 @@
 using System;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DynamicData.Binding;
-using PackForge.Core.Service;
 using PackForge.Core.Terminal;
 using PackForge.Core.Util;
 using PackForge.ViewModels;
@@ -24,11 +22,11 @@ public partial class MainWindow : Window
     }
 
     private int _index;
-    
+
     private void Terminal_OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (sender is not TextBox textBox) return;
-        
+
         switch (e.Key)
         {
             case Key.Enter:
@@ -38,12 +36,11 @@ public partial class MainWindow : Window
                 if (DataContext is MainWindowViewModel) MainWindowViewModel.HandleTerminalInput(input);
                 _index = Terminal.CommandHistory.Count;
                 break;
-                
             }
             case Key.Up:
             {
-                if(_index <= 0) return;
-                
+                if (_index <= 0) return;
+
                 _index--;
                 Log.Debug($"Command history index: {_index} [{Terminal.CommandHistory[_index]}]");
                 textBox.Text = Terminal.CommandHistory[_index];
@@ -51,8 +48,8 @@ public partial class MainWindow : Window
             }
             case Key.Down:
             {
-                if(_index >= Terminal.CommandHistory.Count - 1) return;
-                
+                if (_index >= Terminal.CommandHistory.Count - 1) return;
+
                 _index++;
                 Log.Debug($"Command history index: {_index} [{Terminal.CommandHistory[_index]}]");
                 textBox.Text = Terminal.CommandHistory[_index];
@@ -60,7 +57,7 @@ public partial class MainWindow : Window
             }
         }
     }
-    
+
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
@@ -70,20 +67,20 @@ public partial class MainWindow : Window
             Log.Error("No primary screen found");
             return;
         }
-        
+
         double scale = screen.Scaling;
         PixelRect workingArea = screen.WorkingArea;
-        
-        double desiredWidth = (workingArea.Width / scale) * 0.7;
-        double desiredHeight = (workingArea.Height / scale) * 0.7;
+
+        double desiredWidth = workingArea.Width / scale * 0.7;
+        double desiredHeight = workingArea.Height / scale * 0.7;
         Width = desiredWidth;
         Height = desiredHeight;
 
-        double x = workingArea.X + ((workingArea.Width / scale) - desiredWidth) / 2;
-        double y = workingArea.Y + ((workingArea.Height / scale) - desiredHeight) / 2;
+        double x = workingArea.X + (workingArea.Width / scale - desiredWidth) / 2;
+        double y = workingArea.Y + (workingArea.Height / scale - desiredHeight) / 2;
 
         Position = new PixelPoint((int)x, (int)y);
-        
+
         Log.Debug($"Screen working area: {screen.WorkingArea.Width}x{screen.WorkingArea.Height}");
         Log.Debug($"Window opened with size: {Width}x{Height}");
     }
@@ -120,6 +117,7 @@ public partial class MainWindow : Window
             case true:
                 return;
         }
+
         _isUpdating = true;
         Height = Width / AspectRatio;
         _isUpdating = false;

@@ -4,9 +4,8 @@ namespace PackForge.Core.Terminal.Arguments;
 
 public class IntArgument(int min = int.MinValue, int max = int.MaxValue) : ArgumentType<int>
 {
-    
     private static IntArgument Instance { get; } = new();
-    
+
     private int Min { get; } = min;
     private int Max { get; } = max;
 
@@ -35,7 +34,7 @@ public class IntArgument(int min = int.MinValue, int max = int.MaxValue) : Argum
             return i;
         throw new InvalidArgumentException($"Argument {name} not found or not an int.");
     }
-    
+
     public static int? GetOptionalInt(CommandContext context, string name)
     {
         if (context.Arguments.TryGetValue(name, out object? value) && value is int i)

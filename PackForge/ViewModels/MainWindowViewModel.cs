@@ -388,14 +388,11 @@ public partial class MainWindowViewModel : ObservableObject
         string token = await TokenManager.RetrieveTokenValueByTypeAsync(TokenType.GitHub);
 
         int staged = 0;
-        foreach (string file in files)
-        {
-            staged += await GitService.StageAsync(file, ct);
-        }
+        foreach (string file in files) staged += await GitService.StageAsync(file, ct);
 
         bool success = false;
-        if(staged > 0) success = await GitService.CommitAsync(token, autoCommitMessage.ToString(), ct);
-        
+        if (staged > 0) success = await GitService.CommitAsync(token, autoCommitMessage.ToString(), ct);
+
         if (success) await GitService.PushAsync(token, url, ct);
     }
 
@@ -415,8 +412,8 @@ public partial class MainWindowViewModel : ObservableObject
         return Validator.IsNullOrWhiteSpace(destinationPath) ? string.Empty : Path.Combine(destinationPath, $"{ModpackName ?? "unknown"}", $"{ModpackVersion ?? "0.0.0"}");
     }
 
-    private static async Task CopyFilesBasedOnRepoStatus(string sourceFolder, string targetDir, List<Rule> baseRules, List<Rule> localRules, List<Rule> repoRules, string? overwritePath,
-        CancellationToken ct)
+    private static async Task CopyFilesBasedOnRepoStatus(string sourceFolder, string targetDir, List<Rule> baseRules, List<Rule> localRules, List<Rule> repoRules,
+        string? overwritePath, CancellationToken ct)
     {
         if (Validator.DirectoryExists(GitService.GitRepoPath))
         {
@@ -492,8 +489,8 @@ public partial class MainWindowViewModel : ObservableObject
         Log.Information($"Client files generation took {stopwatch.ElapsedMilliseconds}ms");
     }
 
-    public async Task GenerateServerAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, string? loaderType,
-        string? loaderVersion, string? packName, string? packVersion, string? curseforgeId, CancellationToken ct)
+    public async Task GenerateServerAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, string? loaderType, string? loaderVersion,
+        string? packName, string? packVersion, string? curseforgeId, CancellationToken ct)
     {
         if (Validator.IsNullOrWhiteSpace(sourceFolder) || Validator.IsNullOrWhiteSpace(destinationFolder) || Validator.IsNullOrWhiteSpace(gitHubRepoLink) ||
             Validator.IsNullOrWhiteSpace(loaderType) || Validator.IsNullOrWhiteSpace(loaderVersion) || Validator.IsNullOrWhiteSpace(packName) ||
@@ -542,8 +539,9 @@ public partial class MainWindowViewModel : ObservableObject
     private static List<Rule> CreateRules(bool hasGitHub = false, bool isRepo = false, bool isClient = true)
     {
         List<Rule> ruleSet;
-        
-        List<Rule> rules = [
+
+        List<Rule> rules =
+        [
             new("config", "directory", true),
             new("defaultconfigs", "directory", true),
             new("kubejs", "directory", true),
@@ -552,7 +550,8 @@ public partial class MainWindowViewModel : ObservableObject
 
         List<Rule> localServerRules = [new("mods", "directory", true)];
 
-        List<Rule> localClientRules = [
+        List<Rule> localClientRules =
+        [
             new("shaderpacks", "directory", true),
             new("resourcepacks", "directory", true),
             new("minecraftinstance", "json", true)

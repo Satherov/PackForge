@@ -22,7 +22,7 @@ public static class MavenService
     public static async Task<List<string>> FetchAvailableVersions(string? loaderType, string? mcVersion)
     {
         if (Validator.IsNullOrWhiteSpace(loaderType) || Validator.IsNullOrWhiteSpace(mcVersion)) return [];
-        
+
         try
         {
             string metadataUrl = loaderType switch
@@ -36,13 +36,13 @@ public static class MavenService
             List<string> versionMatches = XDocument.Parse(xmlContent).Descendants("version").Select(e => e.Value).ToList();
 
             Log.Debug($"Fetched {versionMatches.Count} versions from Maven metadata XML for {loaderType}");
-            
+
             Log.Debug($"Minecraft Version: {mcVersion}");
-            
+
             if (loaderType.Equals("NeoForge"))
             {
                 Log.Debug($"Using NeoForge versioning scheme");
-                
+
                 string[] versionParts = mcVersion.Split('.');
                 mcVersion = versionParts.Length switch
                 {
@@ -90,7 +90,7 @@ public static class MavenService
         if (Validator.IsNullOrWhiteSpace(loaderType) || Validator.IsNullOrWhiteSpace(loaderVersion) || !Validator.DirectoryExists(savePath)) return;
 
         string loader = Join("-", loaderType, loaderVersion).ToLowerInvariant();
-        
+
         Log.Debug($"Downloading {loader} from Maven");
 
         string installerUrl = loaderType switch
@@ -99,7 +99,7 @@ public static class MavenService
             "Forge" => $"{ForgeMavenBaseUrl}{loaderVersion}/{loader}-installer.jar",
             _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
-        
+
         Log.Debug($"Installer URL: {installerUrl}");
 
         string destinationFile = loaderType switch
@@ -108,7 +108,7 @@ public static class MavenService
             "Forge" => Path.Join(savePath, $"{loader}-installer.jar"),
             _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
-        
+
         Log.Debug($"Destination file: {destinationFile}");
 
         try

@@ -18,12 +18,9 @@ public class CommandDispatcher
     }
 
     public async Task Execute(string input)
-    { 
+    {
         string[] tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length == 0)
-        {
-            throw new InvalidCommandException("No command provided");
-        }
+        if (tokens.Length == 0) throw new InvalidCommandException("No command provided");
 
         List<List<CommandNodeBase>> paths = [];
         foreach (CommandNodeBase root in _rootNodes)
@@ -62,11 +59,8 @@ public class CommandDispatcher
                     if (parsed != null)
                         context.Arguments[bestPath[i].Name] = parsed;
                 }
-                IEnumerable<string> displayParts = bestPath.Select(node =>
-                    context.Arguments.TryGetValue(node.Name, out object? val)
-                        ? $"<{node.Name}:{val}>"
-                        : node.Name
-                );
+
+                IEnumerable<string> displayParts = bestPath.Select(node => context.Arguments.TryGetValue(node.Name, out object? val) ? $"<{node.Name}:{val}>" : node.Name);
                 Log.Debug($"Executing: {string.Join(" ", displayParts)}");
 
                 await bestPath.Last().Action(context);
@@ -77,15 +71,10 @@ public class CommandDispatcher
         if (partial.Count != 0)
         {
             int max = partial.Values.Max();
-            List<List<CommandNodeBase>> runners = partial
-                .Where(kv => kv.Value == max)
-                .Select(kv => kv.Key)
-                .ToList();
+            List<List<CommandNodeBase>> runners = partial.Where(kv => kv.Value == max).Select(kv => kv.Key).ToList();
             string prefix = string.Join(" ", tokens.Take(max));
 
-            List<List<CommandNodeBase>> endingHere = runners
-                .Where(path => path.Count == max)
-                .ToList();
+            List<List<CommandNodeBase>> endingHere = runners.Where(path => path.Count == max).ToList();
 
             throw new InvalidCommandException(endingHere.Count > 1 ? $"Ambiguous command registration at \"{prefix}\"" : $"Invalid Argument: {prefix} <---");
         }
@@ -96,7 +85,7 @@ public class CommandDispatcher
 
     private static void GatherPaths(CommandNodeBase node, List<CommandNodeBase> soFar, List<List<CommandNodeBase>> outPaths)
     {
-        outPaths.Add([..soFar]); 
+        outPaths.Add([..soFar]);
 
         foreach (CommandNodeBase child in node.Children)
         {

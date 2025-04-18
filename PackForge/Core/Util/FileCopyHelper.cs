@@ -7,91 +7,87 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
-namespace PackForge.Core.Util
+namespace PackForge.Core.Util;
+
+public static class FileCopyHelper
 {
-    public static class FileCopyHelper
+    public static async Task CopyFilesAsync(string sourceRoot, string targetRoot, List<Rule>? ruleSet, CancellationToken ct = default)
     {
-        public static async Task CopyFilesAsync(string sourceRoot, string targetRoot, List<Rule>? ruleSet, CancellationToken ct = default)
+        sourceRoot = sourceRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        targetRoot = targetRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        ruleSet ??= [Rule.Empty];
+        ConcurrentBag<string> matchedDirs = [];
+        List<(string sourcePath, string targetPath)> filesToCopy = [];
+
+        foreach (string entry in Directory.EnumerateFileSystemEntries(sourceRoot, "*", SearchOption.AllDirectories))
         {
-            sourceRoot = sourceRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            targetRoot = targetRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            ct.ThrowIfCancellationRequested();
 
-            ruleSet ??= [Rule.Empty];
-            ConcurrentBag<string> matchedDirs = [];
-            List<(string sourcePath, string targetPath)> filesToCopy = [];
+            string relativePath = Path.GetRelativePath(sourceRoot, entry);
+            string targetPath = Path.Combine(targetRoot, relativePath);
 
-            foreach (string entry in Directory.EnumerateFileSystemEntries(sourceRoot, "*", SearchOption.AllDirectories))
-            {
-                ct.ThrowIfCancellationRequested();
-
-                string relativePath = Path.GetRelativePath(sourceRoot, entry);
-                string targetPath = Path.Combine(targetRoot, relativePath);
-
-                if (IsInMatchedDirectory(entry, matchedDirs) || IsIncluded(entry, ruleSet, matchedDirs))
-                {
-                    filesToCopy.Add((entry, targetPath));
-                }
-            }
-
-            Parallel.ForEach(filesToCopy, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct}, pair =>
-            {
-                try
-                {
-                    if (Directory.Exists(pair.sourcePath))
-                    {
-                        Directory.CreateDirectory(pair.targetPath);
-                    }
-                    else
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(pair.targetPath)!);
-                        File.Copy(pair.sourcePath, pair.targetPath, true);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning($"Failed to copy {pair.sourcePath} to {pair.targetPath}: {ex.Message}");
-                }
-            });
+            if (IsInMatchedDirectory(entry, matchedDirs) || IsIncluded(entry, ruleSet, matchedDirs)) filesToCopy.Add((entry, targetPath));
         }
 
-        private static bool IsIncluded(string fullPath, List<Rule> ruleSet, ConcurrentBag<string> matchedDirs)
+        Parallel.ForEach(filesToCopy, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct }, pair =>
         {
-            string fileName = Path.GetFileName(fullPath);
-            string nameWithoutExt = Path.GetFileNameWithoutExtension(fullPath);
-            string ext = Path.GetExtension(fullPath).TrimStart('.');
-            bool isDir = File.GetAttributes(fullPath).HasFlag(FileAttributes.Directory);
-
-            foreach (Rule rule in ruleSet)
+            try
             {
-                string ruleFilePath = rule.FilePath;
-                string ruleType = rule.Type.TrimStart('.');
-
-                if (rule is { FilePath: "*", Type: "*" })
-                    return true;
-
-                if (isDir)
+                if (Directory.Exists(pair.sourcePath))
                 {
-                    if ((ruleFilePath != "*" && ruleFilePath != fileName) || ruleType != "directory") continue;
-                    
-                    matchedDirs.Add(fullPath);
-                    return true;
+                    Directory.CreateDirectory(pair.targetPath);
                 }
                 else
                 {
-                    bool nameMatches = ruleFilePath == "*" || ruleFilePath == nameWithoutExt;
-                    bool extMatches = ruleType == "*" || ruleType.Equals(ext, StringComparison.OrdinalIgnoreCase);
-
-                    if (nameMatches && extMatches)
-                        return true;
+                    Directory.CreateDirectory(Path.GetDirectoryName(pair.targetPath)!);
+                    File.Copy(pair.sourcePath, pair.targetPath, true);
                 }
             }
+            catch (Exception ex)
+            {
+                Log.Warning($"Failed to copy {pair.sourcePath} to {pair.targetPath}: {ex.Message}");
+            }
+        });
+    }
 
-            return false;
-        }
+    private static bool IsIncluded(string fullPath, List<Rule> ruleSet, ConcurrentBag<string> matchedDirs)
+    {
+        string fileName = Path.GetFileName(fullPath);
+        string nameWithoutExt = Path.GetFileNameWithoutExtension(fullPath);
+        string ext = Path.GetExtension(fullPath).TrimStart('.');
+        bool isDir = File.GetAttributes(fullPath).HasFlag(FileAttributes.Directory);
 
-        private static bool IsInMatchedDirectory(string fullPath, ConcurrentBag<string> matchedDirs)
+        foreach (Rule rule in ruleSet)
         {
-            return matchedDirs.Any(dir => fullPath.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+            string ruleFilePath = rule.FilePath;
+            string ruleType = rule.Type.TrimStart('.');
+
+            if (rule is { FilePath: "*", Type: "*" })
+                return true;
+
+            if (isDir)
+            {
+                if ((ruleFilePath != "*" && ruleFilePath != fileName) || ruleType != "directory") continue;
+
+                matchedDirs.Add(fullPath);
+                return true;
+            }
+            else
+            {
+                bool nameMatches = ruleFilePath == "*" || ruleFilePath == nameWithoutExt;
+                bool extMatches = ruleType == "*" || ruleType.Equals(ext, StringComparison.OrdinalIgnoreCase);
+
+                if (nameMatches && extMatches)
+                    return true;
+            }
         }
+
+        return false;
+    }
+
+    private static bool IsInMatchedDirectory(string fullPath, ConcurrentBag<string> matchedDirs)
+    {
+        return matchedDirs.Any(dir => fullPath.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
     }
 }

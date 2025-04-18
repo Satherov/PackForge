@@ -21,7 +21,7 @@ namespace PackForge.Core.Service;
 public static partial class GitService
 {
     public static readonly string GitRepoPath = Path.Combine(App.AppDataPath, "github");
-    
+
     public record GitHubRepoInfo
     {
         public string Owner { get; set; } = string.Empty;
@@ -81,7 +81,7 @@ public static partial class GitService
         string email = $"{username}@users.noreply.github.com";
         return new GitHubUserInfo(username, email);
     }
-    
+
     public static async Task CloneOrUpdateRepoAsync(string url, CancellationToken ct = default)
     {
         if (Directory.Exists(GitRepoPath) && Repository.IsValid(GitRepoPath))
@@ -108,9 +108,12 @@ public static partial class GitService
         CloneOptions cloneOptions = new()
         {
             BranchName = repoInfo.DefaultBranch,
-            FetchOptions = {
-                CredentialsProvider = (_,_,_) => new UsernamePasswordCredentials {
-                    Username = "x-access-token", Password = githubToken }
+            FetchOptions =
+            {
+                CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials
+                {
+                    Username = "x-access-token", Password = githubToken
+                }
             }
         };
 
@@ -152,14 +155,12 @@ public static partial class GitService
 
         FetchOptions fetchOpts = new()
         {
-            CredentialsProvider = (_,_,_) =>
-                new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
+            CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
         };
 
         await Task.Run(() => Commands.Fetch(repo, "origin", Array.Empty<string>(), fetchOpts, null), ct);
         Branch? remoteBranch = repo.Branches[$"origin/{repoInfo.DefaultBranch}"];
-        Branch? localBranch = repo.Branches[repoInfo.DefaultBranch]
-                              ?? repo.CreateBranch(repoInfo.DefaultBranch, remoteBranch.Tip);
+        Branch? localBranch = repo.Branches[repoInfo.DefaultBranch] ?? repo.CreateBranch(repoInfo.DefaultBranch, remoteBranch.Tip);
 
         repo.Branches.Update(localBranch, b => b.TrackedBranch = remoteBranch.CanonicalName);
         Commands.Checkout(repo, localBranch);
@@ -168,7 +169,7 @@ public static partial class GitService
 
         Log.Information("Repository updated successfully");
     }
-    
+
     public static async Task GetRepoStatusAsync(CancellationToken ct = default)
     {
         if (!Repository.IsValid(GitRepoPath))
@@ -190,60 +191,39 @@ public static partial class GitService
 
             // Staged (index) changes
             foreach (StatusEntry? e in status.Where(e =>
-                         e.State.HasFlag(FileStatus.NewInIndex)      ||
-                         e.State.HasFlag(FileStatus.ModifiedInIndex) ||
-                         e.State.HasFlag(FileStatus.DeletedFromIndex)||
-                         e.State.HasFlag(FileStatus.RenamedInIndex)  ||
-                         e.State.HasFlag(FileStatus.TypeChangeInIndex)))
-            {
+                         e.State.HasFlag(FileStatus.NewInIndex) || e.State.HasFlag(FileStatus.ModifiedInIndex) || e.State.HasFlag(FileStatus.DeletedFromIndex) ||
+                         e.State.HasFlag(FileStatus.RenamedInIndex) || e.State.HasFlag(FileStatus.TypeChangeInIndex)))
                 Log.Information($"Staged:   {e.FilePath} ({e.State})");
-            }
 
             // Unstaged (workdir) changes
             foreach (StatusEntry? e in status.Where(e =>
-                         e.State.HasFlag(FileStatus.NewInWorkdir)       ||
-                         e.State.HasFlag(FileStatus.ModifiedInWorkdir)  ||
-                         e.State.HasFlag(FileStatus.DeletedFromWorkdir) ||
-                         e.State.HasFlag(FileStatus.RenamedInWorkdir)   ||
-                         e.State.HasFlag(FileStatus.TypeChangeInWorkdir)))
-            {
+                         e.State.HasFlag(FileStatus.NewInWorkdir) || e.State.HasFlag(FileStatus.ModifiedInWorkdir) || e.State.HasFlag(FileStatus.DeletedFromWorkdir) ||
+                         e.State.HasFlag(FileStatus.RenamedInWorkdir) || e.State.HasFlag(FileStatus.TypeChangeInWorkdir)))
                 Log.Information($"Modified: {e.FilePath} ({e.State})");
-            }
 
             // Untracked files
             foreach (StatusEntry? e in status.Where(e => e.State == FileStatus.NewInWorkdir && e.State.HasFlag(FileStatus.Ignored) == false))
-            {
                 Log.Information($"Untracked:{e.FilePath}");
-            }
 
             // Ignored files
-            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Ignored)))
-            {
-                Log.Information($"Ignored:  {e.FilePath}");
-            }
+            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Ignored))) Log.Information($"Ignored:  {e.FilePath}");
 
             // Conflicts
-            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Conflicted)))
-            {
-                Log.Information($"Conflict: {e.FilePath}");
-            }
+            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Conflicted))) Log.Information($"Conflict: {e.FilePath}");
         }, ct);
     }
-    
+
     public static async Task<int> StageAsync(string path, CancellationToken ct = default)
     {
         if (Validator.IsNullOrWhiteSpace(path)) return 0;
-        
+
         if (!Repository.IsValid(GitRepoPath))
         {
             Log.Warning($"Cannot stage files: no valid repo at {GitRepoPath}");
             return 0;
         }
 
-        if (path.StartsWith(GitRepoPath, StringComparison.OrdinalIgnoreCase))
-        {
-            path = Path.GetRelativePath(GitRepoPath, path);
-        }
+        if (path.StartsWith(GitRepoPath, StringComparison.OrdinalIgnoreCase)) path = Path.GetRelativePath(GitRepoPath, path);
 
         using Repository repo = new(GitRepoPath);
         await Task.Run(() =>
@@ -274,7 +254,7 @@ public static partial class GitService
             Log.Warning($"Path not found: '{path}'");
             return 0;
         }, ct);
-        
+
         return 1;
     }
 
@@ -289,8 +269,8 @@ public static partial class GitService
 
     public static async Task<bool> CommitAsync(string token, string commitMessage, CancellationToken ct = default)
     {
-        if(Validator.IsNullOrWhiteSpace(token) || Validator.IsNullOrWhiteSpace(commitMessage)) return false;
-        
+        if (Validator.IsNullOrWhiteSpace(token) || Validator.IsNullOrWhiteSpace(commitMessage)) return false;
+
         using Repository repo = new(GitRepoPath);
 
         if (repo.Index.Count == 0)
@@ -349,8 +329,8 @@ public static partial class GitService
 
     public static async Task PushAsync(string token, string url, CancellationToken ct = default)
     {
-        if(Validator.IsNullOrWhiteSpace(token) || Validator.IsNullOrWhiteSpace(url)) return;
-        
+        if (Validator.IsNullOrWhiteSpace(token) || Validator.IsNullOrWhiteSpace(url)) return;
+
         if (!Repository.IsValid(GitRepoPath))
         {
             Log.Warning("Push skipped: invalid Git repository.");

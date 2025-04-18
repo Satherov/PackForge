@@ -32,7 +32,7 @@
             </StackPanel>
         </Border>
 
-        <!-- Curseforge Token -->
+        <!-- Curseforge Token 
         <Border Margin="0, 10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
             <StackPanel>
                 <Grid ColumnDefinitions="5*,Auto, Auto">
@@ -46,6 +46,6 @@
                             ToolTip.Tip="Opens the Curseforge api token page" />
                 </Grid>
             </StackPanel>
-        </Border>
+        </Border>-->
     </StackPanel>
 </Window>
