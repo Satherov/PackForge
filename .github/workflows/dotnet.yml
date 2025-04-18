@@ -11,14 +11,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        dotnet: [8.0.x]
+  build-and-test:
     runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux
+          - os: macos-latest
+            rid: osx
+          - os: windows-latest
+            rid: win
+    
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Cache NuGet packages
         uses: actions/cache@v3
@@ -31,16 +40,28 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ matrix.dotnet }}
+          dotnet-version: 9.0.x
+          
+      - name: Apply code formatting and commit
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet format --verbosity minimal \
+            --exclude "PackForge/Core/Terminal/Commands"
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "actions@github.com"
+            git fetch origin master
+            git rebase origin/master
+            git push origin HEAD:master
+          fi
 
       - name: Restore
-        run: dotnet restore
-
-      - name: Enforce formatting
-        run: dotnet format --verify-no-changes
+        run: dotnet restore ./PackForge.sln
 
       - name: Build
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --verbosity normal --configuration Release
+        run: dotnet test --verbosity normal --configuration Release --os ${{ matrix.rid }}

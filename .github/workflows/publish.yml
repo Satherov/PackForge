@@ -1,0 +1,45 @@
+name: publish.yml
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: macos-latest
+            runtime: osx-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore ./PackForge.sln
+
+      - name: Publish single-file app
+        run: |
+          dotnet publish ./PackForge.sln \
+            -c Release \
+            -r ${{ matrix.runtime }} \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:IncludeAllContentForSelfExtract=true \
+            /p:EnableCompressionInSingleFile=true \
+            -o publish/${{ matrix.runtime }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PackForge-${{ matrix.runtime }}
+          path: publish/${{ matrix.runtime }}/
