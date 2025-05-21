@@ -18,7 +18,7 @@ public partial class OverwriteWindow : Window
     {
         Log.Debug("Saving overwrite state...");
 
-        if (DataContext is FilterWindowViewModel vm)
+        if (DataContext is OverwriteWindowViewModel vm)
         {
             vm.SaveData();
             Log.Debug("Overwrite state saved");

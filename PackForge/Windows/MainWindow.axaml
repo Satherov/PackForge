@@ -97,7 +97,7 @@
                             <Button Grid.Column="2" MinWidth="150" Content="Token Settings" Command="{Binding OpenTokenWindowCommand}" />
                             <Button Grid.Column="3" MinWidth="150" Content="Override Settings" Command="{Binding OpenOverwriteWindowCommand}" />
                             <Button Grid.Column="4" MinWidth="150" Content="Template Folder" Command="{Binding OpenTemplateFolderCommand}"
-                                    ToolTip.Tip="Files inside this folder will be moved into the Server Export upon generation. Useful for Server Start scripts or similar" />
+                                    ToolTip.Tip="Files inside this folder will be copied into the Server Export upon generation. Useful for Server Start scripts or similar" />
                             <Border Grid.Column="5" Margin="10" CornerRadius="10" BorderThickness="1" Background="#2A2A40" BorderBrush="#5A5A70">
                                 <StackPanel Orientation="Horizontal">
                                     <ToggleSwitch Margin="10,0,5,0" IsChecked="{Binding ShowDebugLogs, Mode=TwoWay}" />

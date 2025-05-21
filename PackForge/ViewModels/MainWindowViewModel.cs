@@ -517,8 +517,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         if (Validator.DirectoryExists(TemplateFolderPath, LogEventLevel.Debug) && Directory.GetFiles(TemplateFolderPath).Length > 0)
         {
-            List<Rule> templateRules = [new("README", "md", false)];
-            await FileCopyHelper.CopyFilesAsync(TemplateFolderPath, targetDir, templateRules, ct);
+            await FileCopyHelper.CopyFilesAsync(TemplateFolderPath, targetDir, null, ct);
             Log.Information("Successfully copied template files");
         }
         else

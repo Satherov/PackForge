@@ -236,8 +236,7 @@ public static class ChangelogGenerator
         sb.AppendLine("---\n");
     }
 
-    internal static async Task<List<FileEntry>> GetFolderDiffAsync(string oldExport, string newExport, Dictionary<string, string> oldFiles, Dictionary<string, string> newFiles,
-        CancellationToken ct = default)
+    internal static async Task<List<FileEntry>> GetFolderDiffAsync(string oldExport, string newExport, Dictionary<string, string> oldFiles, Dictionary<string, string> newFiles, CancellationToken ct = default)
     {
         Log.Debug("Generating folder differences");
         HashSet<string> allKeys = new(oldFiles.Keys);
@@ -256,36 +255,42 @@ public static class ChangelogGenerator
             CancellationToken = ct
         };
 
-        TransformBlock<string, FileEntry> processBlock = new(async key =>
+        TransformBlock<string, FileEntry?> processBlock = new(async key =>
         {
             bool oldExists = oldFiles.TryGetValue(key, out string? oldPath);
             bool newExists = newFiles.TryGetValue(key, out string? newPath);
 
-            if (oldExists && newExists)
+            switch (oldExists)
             {
-                string oldFile = Path.Combine(oldExport, oldPath!);
-                string newFile = Path.Combine(newExport, newPath!);
-                if (!await JsonFilesEqualAsync(oldFile, newFile, ct))
+                case true when newExists:
                 {
+                    string oldFile = Path.Combine(oldExport, oldPath!);
+                    string newFile = Path.Combine(newExport, newPath!);
+                    if (await JsonFilesEqualAsync(oldFile, newFile, ct)) return null;
+                
                     Interlocked.Increment(ref changed);
                     return new FileEntry(key, FileChangedType.Changed);
                 }
-            }
-            else if (oldExists)
-            {
-                Interlocked.Increment(ref removed);
-                return new FileEntry(key, FileChangedType.Removed);
-            }
-            else // new file exists only
-            {
-                Interlocked.Increment(ref added);
-                return new FileEntry(key, FileChangedType.Added);
-            }
+                case true:
+                    Interlocked.Increment(ref removed);
+                    return new FileEntry(key, FileChangedType.Removed);
+                default:
+                {
+                    if (newExists)
+                    {
+                        Interlocked.Increment(ref added);
+                        return new FileEntry(key, FileChangedType.Added);
+                    }
 
-            throw new InvalidOperationException($"Unexpected file state for key: {key}");
+                    break;
+                }
+            }
+            throw new InvalidOperationException($"Key missing in both exports: {key}");
         }, executionOptions);
         
-        ActionBlock<FileEntry> collectBlock = new(entry => { diffs.Add(entry); }, executionOptions);
+        ActionBlock<FileEntry?> collectBlock = new(entry => {
+            if (entry != null) diffs.Add(entry);
+        }, executionOptions);
 
         // Link the pipeline.
         processBlock.LinkTo(collectBlock, new DataflowLinkOptions { PropagateCompletion = true });
