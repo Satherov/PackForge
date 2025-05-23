@@ -312,7 +312,7 @@ public static partial class GitService
         {
             repo.Commit(commitBuilder.ToString(), signature, signature);
         }
-        catch (EmptyCommitException ex)
+        catch (EmptyCommitException)
         {
             Log.Warning($"No changes - nothing to commit");
             return false;

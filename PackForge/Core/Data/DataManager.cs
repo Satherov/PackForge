@@ -40,7 +40,7 @@ public static class DataManager
             _container = JsonSerializer.Deserialize<ConfigDataContainer>(json, JsonOptions) ?? throw new NullReferenceException("Config could not be deserialized");
             Log.Debug("Config loaded successfully");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             Log.Warning("Config loading failed, attempting to run DataFix");
             try
