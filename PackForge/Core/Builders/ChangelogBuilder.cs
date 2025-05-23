@@ -46,7 +46,7 @@ public static class ChangelogGenerator
 {
     public static readonly string ChangelogPath = Path.Combine(App.AppDataPath, "data", "changelog");
 
-    public static async Task GenerateFullChangelogAsync(string changelogPath, string? exportSourcePath, string modpackName, string version, string? oldVersion = null, CancellationToken ct = default)
+    public static async Task GenerateFullChangelogAsync(string changelogPath, string? exportSourcePath, string modpackName, string modloader, string loaderVersion, string version, string? oldVersion = null, CancellationToken ct = default)
     {
         if (Validator.IsNullOrWhiteSpace(modpackName)) return;
 
@@ -59,7 +59,7 @@ public static class ChangelogGenerator
 
         Stopwatch stopwatch = Stopwatch.StartNew();
         Log.Information("Starting changelog generation");
-        Log.Debug($"Arguments: [Dest: {changelogPath}] [Source: {exportSourcePath}] [Version: {version}] [OldVersion: {oldVersion}]");
+        Log.Debug("Arguments: [Dest: {S}] [Source: {ExportSourcePath}] [Version: {Version}] [OldVersion: {OldVersion}]", changelogPath, exportSourcePath, version, oldVersion);
         Task copyTask = Task.CompletedTask;
 
         if (oldVersion == null)
@@ -78,14 +78,14 @@ public static class ChangelogGenerator
             }
 
             Log.Debug("Creating versioned export");
-            copyTask = FileCopyHelper.CopyFilesAsync(newExportDir, Path.Combine(ChangelogPath, $"export-{version}"), null, ct);
+            copyTask = FileCopyHelper.CopyFilesAsync(newExportDir, Path.Combine(ChangelogPath, modpackName, $"export-{version}"), null, ct);
         }
 
-        string oldExport = oldVersion == null ? oldExportDir : Path.Combine(ChangelogPath, $"export-{oldVersion}");
-        string newExport = oldVersion == null ? newExportDir : Path.Combine(ChangelogPath, $"export-{version}");
+        string oldExport = oldVersion == null ? oldExportDir : Path.Combine(ChangelogPath, modpackName, $"export-{oldVersion}");
+        string newExport = oldVersion == null ? newExportDir : Path.Combine(ChangelogPath, modpackName, $"export-{version}");
 
-        Log.Debug($"Old export: {oldExport}");
-        Log.Debug($"New export: {newExport}");
+        Log.Debug("Old export: {OldExport}", oldExport);
+        Log.Debug("New export: {NewExport}", newExport);
 
         StringBuilder sb = new();
 
@@ -97,6 +97,7 @@ public static class ChangelogGenerator
 
         List<ModEntry> modsDiff = await GetModsDiffAsync(oldExport, newExport, ct);
         AppendModsSection(sb, modsDiff);
+        sb.AppendLine($"{modloader} version {loaderVersion}\n");
 
         Log.Debug("Collecting files");
         Task<Dictionary<string, string>> oldTask =
@@ -117,10 +118,10 @@ public static class ChangelogGenerator
         Log.Information($"Writing changelog entries to file");
         foreach ((SectionType section, List<FileEntry> entries) in sectionMap.OrderBy(x => x.Key))
         {
-            Log.Debug($"Writing section: '{section}'");
+            Log.Debug("Writing section: '{SectionType}'", section);
             if (entries.Count == 0)
             {
-                Log.Debug($"No entries for section: '{section}'");
+                Log.Debug("No entries for section: '{SectionType}'", section);
                 continue;
             }
 
@@ -144,13 +145,13 @@ public static class ChangelogGenerator
         }
 
         await File.WriteAllTextAsync(Path.Combine(changelogPath, $"CHANGELOG-{version}.md"), sb.ToString(), ct);
-        Log.Information($"Changelog generated successfully after {stopwatch.ElapsedMilliseconds}ms");
+        Log.Information("Changelog generated successfully after {StopwatchElapsedMilliseconds}ms", stopwatch.ElapsedMilliseconds);
 
         Log.Debug("Waiting for versioned export to finish");
         await copyTask;
         Log.Debug("Cleaning up old export directories");
-        Directory.Delete(oldExportDir, true);
-        Directory.Move(newExportDir, oldExportDir);
+        //Directory.Delete(oldExportDir, true);
+        //Directory.Move(newExportDir, oldExportDir);
     }
 
     internal static async Task<List<ModEntry>> GetModsDiffAsync(string oldExport, string newExport, CancellationToken ct = default)
@@ -160,9 +161,9 @@ public static class ChangelogGenerator
 
         if (!Validator.FileExists(oldModsPath) || !Validator.FileExists(newModsPath)) return [];
 
-        Log.Debug("Generating mods differences");
-        Log.Debug($"Old path: {oldModsPath}");
-        Log.Debug($"New path: {newModsPath}");
+        Log.Information("Generating mods differences");
+        Log.Debug("Old path: {OldModsPath}", oldModsPath);
+        Log.Debug("New path: {NewModsPath}", newModsPath);
 
         List<Dictionary<string, string>> oldMods = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(await File.ReadAllTextAsync(oldModsPath, ct)) ?? [];
         List<Dictionary<string, string>> newMods = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(await File.ReadAllTextAsync(newModsPath, ct)) ?? [];
@@ -172,7 +173,7 @@ public static class ChangelogGenerator
 
         List<string> allIds = oldDict.Keys.Union(newDict.Keys).ToList();
 
-        Log.Debug($"Found {allIds.Count} mods to compare");
+        Log.Debug("Found {AllIdsCount} mods to compare", allIds.Count);
 
         List<ModEntry> result = allIds.Select(id =>
         {
@@ -183,7 +184,7 @@ public static class ChangelogGenerator
             return new ModEntry(name, newMod?.GetValueOrDefault("version") ?? string.Empty, oldMod?.GetValueOrDefault("version") ?? string.Empty);
         }).ToList();
 
-        Log.Debug($"Finished generating mods differences with {result.Count} entries");
+        Log.Debug("Finished generating mods differences with {ResultCount} entries", result.Count);
         return result;
     }
 
@@ -199,9 +200,9 @@ public static class ChangelogGenerator
         int removedCount = removed.Count;
         int changedCount = changed.Count;
 
-        Log.Debug($"{addedCount} Mods added");
-        Log.Debug($"{removedCount} Mods removed");
-        Log.Debug($"{changedCount} Mods changed");
+        Log.Debug("{AddedCount} Mods added", addedCount);
+        Log.Debug("{RemovedCount} Mods removed", removedCount);
+        Log.Debug("{ChangedCount} Mods changed", changedCount);
 
         sb.AppendLine("## 🛠️ Mods\n");
 
@@ -244,7 +245,7 @@ public static class ChangelogGenerator
         allKeys.RemoveWhere(k => !k.Contains(Path.DirectorySeparatorChar));
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        Log.Information($"Comparing {allKeys.Count} files");
+        Log.Information("Comparing {AllKeysCount} files", allKeys.Count);
 
         ConcurrentBag<FileEntry> diffs = [];
         int added = 0, removed = 0, changed = 0;
@@ -300,7 +301,7 @@ public static class ChangelogGenerator
         processBlock.Complete();
         await collectBlock.Completion;
 
-        Log.Information($"Found {added} added, {changed} changed, {removed} removed files in {stopwatch.ElapsedMilliseconds}ms");
+        Log.Information("Found {Added} added, {Changed} changed, {Removed} removed files in {StopwatchElapsedMilliseconds}ms", added, changed, removed, stopwatch.ElapsedMilliseconds);
         return diffs.ToList();
     }
 
