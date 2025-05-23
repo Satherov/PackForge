@@ -187,7 +187,7 @@ public partial class MainWindowViewModel : ObservableObject
             LoaderType, LoaderVersion, ModpackName, ModpackVersion, ModpackAuthor, CurseforgeId, Cts.Token));
         GenerateServerCommand = new AsyncRelayCommand(async () => await GenerateServerAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, _silentTask, LoaderType,
             LoaderVersion, ModpackName, ModpackVersion, CurseforgeId, Cts.Token));
-        GenerateChangelogCommand = CreateCommand(() => GenerateChangelog(SourceFolderPath, DestinationFolderPath, ModpackName, ModpackVersion, Cts.Token));
+        GenerateChangelogCommand = CreateCommand(() => GenerateChangelog(SourceFolderPath, DestinationFolderPath, ModpackName, LoaderType, LoaderVersion, ModpackVersion, Cts.Token));
         GenerateAllCommand = CreateCommand(async () =>
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -200,9 +200,9 @@ public partial class MainWindowViewModel : ObservableObject
                 GenerateClientAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, null, MinecraftVersion, LoaderType, LoaderVersion, ModpackName, ModpackVersion,
                     ModpackAuthor, CurseforgeId, Cts.Token),
                 GenerateServerAsync(SourceFolderPath, DestinationFolderPath, GitHubLink, null, LoaderType, LoaderVersion, ModpackName, ModpackVersion, CurseforgeId, Cts.Token),
-                GenerateChangelog(SourceFolderPath, DestinationFolderPath, ModpackName, ModpackVersion, Cts.Token));
+                GenerateChangelog(SourceFolderPath, DestinationFolderPath, ModpackName, LoaderType, LoaderVersion, ModpackVersion, Cts.Token));
 
-            Log.Information($"All tasks completed after {stopwatch.ElapsedMilliseconds}ms");
+            Log.Information("All tasks completed after {StopwatchElapsedMilliseconds}ms", stopwatch.ElapsedMilliseconds);
         });
 
 
@@ -294,7 +294,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         try
         {
-            Log.Information($"Fetching available versions for {loaderType}");
+            Log.Information("Fetching available versions for {S}", loaderType);
             string? oldSelected = LoaderVersion;
             LoaderVersion = null;
 
@@ -322,11 +322,11 @@ public partial class MainWindowViewModel : ObservableObject
             if (oldSelected != null && LoaderVersionOptions.Contains(oldSelected))
                 LoaderVersion = oldSelected;
 
-            Log.Debug($"Available for {loaderType} {MinecraftVersion} are: [{string.Join(", ", LoaderVersionOptions)}]");
+            Log.Debug("Available for {S} {MinecraftVersion1} are: [{Join}]", loaderType, MinecraftVersion, string.Join(", ", LoaderVersionOptions));
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to fetch loader versions: {ex.Message}");
+            Log.Error("Failed to fetch loader versions: {ExMessage}", ex.Message);
         }
     }
 
@@ -349,20 +349,20 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to open GitHub repository page: {ex.Message}");
+            Log.Error("Failed to open GitHub repository page: {ExMessage}", ex.Message);
         }
     }
 
-    private static async Task GenerateChangelog(string? sourceFolder, string? destinationFolder, string? packName, string? packVersion, CancellationToken ct)
+    private static async Task GenerateChangelog(string? sourceFolder, string? destinationFolder, string? packName, string? loaderType, string? loaderVersion, string? packVersion, CancellationToken ct)
     {
         if (Validator.IsNullOrWhiteSpace(sourceFolder) || Validator.IsNullOrWhiteSpace(destinationFolder) || Validator.IsNullOrWhiteSpace(packName) ||
-            Validator.IsNullOrWhiteSpace(packVersion))
+            Validator.IsNullOrWhiteSpace(loaderType) || Validator.IsNullOrWhiteSpace(loaderVersion)|| Validator.IsNullOrWhiteSpace(packVersion))
             return;
 
         string root = await FileUtil.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
 
         string export = Path.Join(sourceFolder, "local", "kubejs", "export");
-        await ChangelogGenerator.GenerateFullChangelogAsync(root, export, packName, packVersion, ct: ct);
+        await ChangelogGenerator.GenerateFullChangelogAsync(root, export, packName, loaderType, loaderVersion, packVersion, ct: ct);
     }
 
     private static async Task PushToGitHub(string? url, Task? silentCloneTask, CancellationToken ct = default)
@@ -461,7 +461,7 @@ public partial class MainWindowViewModel : ObservableObject
             return;
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        Log.Information($"Generating client files for {sourceFolder} to {destinationFolder}");
+        Log.Information("Generating client files for {SourceFolder} to {DestinationFolder}", sourceFolder, destinationFolder);
 
         List<Rule> baseRules = CreateRules();
         List<Rule> localRules = CreateRules(true);
@@ -469,6 +469,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         string root = await FileUtil.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
         string targetDir = Path.Combine(root, $"{packName}-ClientExport");
+        if(Validator.DirectoryExists(targetDir, LogEventLevel.Debug)) Directory.Delete(targetDir, true);
         Directory.CreateDirectory(targetDir);
 
         await GenerateRepo(gitHubRepoLink, silentCloneTask, ct);
@@ -486,7 +487,7 @@ public partial class MainWindowViewModel : ObservableObject
         Log.Information("Successfully generated client files");
 
         stopwatch.Stop();
-        Log.Information($"Client files generation took {stopwatch.ElapsedMilliseconds}ms");
+        Log.Information("Client files generation took {StopwatchElapsedMilliseconds}ms", stopwatch.ElapsedMilliseconds);
     }
 
     public async Task GenerateServerAsync(string? sourceFolder, string? destinationFolder, string? gitHubRepoLink, Task? silentCloneTask, string? loaderType, string? loaderVersion,
@@ -498,7 +499,7 @@ public partial class MainWindowViewModel : ObservableObject
             return;
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        Log.Information($"Generating server files for {sourceFolder} to {destinationFolder}");
+        Log.Information("Generating server files for {SourceFolder} to {DestinationFolder}", sourceFolder, destinationFolder);
 
         List<Rule> baseRules = CreateRules(false, false, false);
         List<Rule> localRules = CreateRules(true, false, false);
@@ -506,6 +507,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         string root = await FileUtil.PrepareRootFolderAsync(destinationFolder, packName, packVersion);
         string targetDir = Path.Combine(root, $"{packName}-ServerExport");
+        if(Validator.DirectoryExists(targetDir, LogEventLevel.Debug)) Directory.Delete(targetDir, true);
         Directory.CreateDirectory(targetDir);
 
         await GenerateRepo(gitHubRepoLink, silentCloneTask, ct);
@@ -532,7 +534,7 @@ public partial class MainWindowViewModel : ObservableObject
         Log.Information("Successfully generated server files");
 
         stopwatch.Stop();
-        Log.Information($"Server files generation took {stopwatch.ElapsedMilliseconds}ms");
+        Log.Information("Server files generation took {StopwatchElapsedMilliseconds}ms", stopwatch.ElapsedMilliseconds);
     }
 
     private static List<Rule> CreateRules(bool hasGitHub = false, bool isRepo = false, bool isClient = true)
@@ -562,13 +564,12 @@ public partial class MainWindowViewModel : ObservableObject
         if (hasGitHub)
         {
             ruleSet = isRepo ? rules : localServerRules;
-            foreach (Rule rule in ruleSet) Log.Debug($"Using {rule}");
             return ruleSet;
         }
 
         rules.AddRange(localServerRules);
         ruleSet = isRepo ? rules : localServerRules;
-        foreach (Rule rule in ruleSet) Log.Debug($"Using {rule}");
+        foreach (Rule rule in ruleSet) Log.Debug("Using {Rule}", rule);
         return ruleSet;
     }
 }

@@ -62,7 +62,7 @@ public static class JarUtil
 
         ModInfo[] results = await Task.WhenAll(tasks);
         stopwatch.Stop();
-        Log.Debug($"Collected mod data from {directory} in {stopwatch.ElapsedMilliseconds} ms");
+        Log.Debug("Collected mod data from {Directory} in {StopwatchElapsedMilliseconds} ms", directory, stopwatch.ElapsedMilliseconds);
         return results.ToList();
     }
 
@@ -93,7 +93,7 @@ public static class JarUtil
             }
             catch (Exception ex)
             {
-                Log.Warning($"Failed to process nested jar {jarEntry.FullName} in {jarFilePath}: {ex.Message}");
+                Log.Warning("Failed to process nested jar {JarEntryFullName} in {JarFilePath}: {ExMessage}", jarEntry.FullName, jarFilePath, ex.Message);
             }
         });
 
@@ -104,7 +104,7 @@ public static class JarUtil
 
     private static async Task<ModInfo> ReadJarInfo(ZipArchive archive, string jarFilePath, CancellationToken ct)
     {
-        Log.Debug($"Reading jar file {Path.GetFileName(jarFilePath)}");
+        Log.Debug("Reading jar file {GetFileName}", Path.GetFileName(jarFilePath));
 
         ModInfo modInfo = ModInfo.NoData(jarFilePath);
         ZipArchiveEntry? tomlEntry = archive.Entries.FirstOrDefault(entry =>

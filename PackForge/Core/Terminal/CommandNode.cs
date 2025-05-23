@@ -46,7 +46,7 @@ public class RequiredArgumentCommandNode<T>(string name, ArgumentType<T?> type, 
         catch (Exception ex)
         {
             parsedValue = null;
-            Log.Error($"Error parsing required argument '{Name}': {token} is not a valid {Type.GetType().Name}. Exception: {ex.Message}");
+            Log.Error("Error parsing required argument '{S}': {Token} is not a valid {Name1}. Exception: {ExMessage}", Name, token, Type.GetType().Name, ex.Message);
             return false;
         }
     }
@@ -66,7 +66,7 @@ public class OptionalArgumentCommandNode<T>(string name, ArgumentType<T?> type, 
         catch
         {
             parsedValue = null;
-            Log.Error($"Error parsing optional argument '{Name}': {token} is not a valid {Type.GetType().Name}");
+            Log.Error("Error parsing optional argument '{S}': {Token} is not a valid {Name1}", Name, token, Type.GetType().Name);
             return false;
         }
     }

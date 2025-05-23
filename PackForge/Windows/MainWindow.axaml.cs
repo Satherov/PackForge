@@ -42,7 +42,7 @@ public partial class MainWindow : Window
                 if (_index <= 0) return;
 
                 _index--;
-                Log.Debug($"Command history index: {_index} [{Terminal.CommandHistory[_index]}]");
+                Log.Debug("Command history index: {Index} [{S}]", _index, Terminal.CommandHistory[_index]);
                 textBox.Text = Terminal.CommandHistory[_index];
                 break;
             }
@@ -51,7 +51,7 @@ public partial class MainWindow : Window
                 if (_index >= Terminal.CommandHistory.Count - 1) return;
 
                 _index++;
-                Log.Debug($"Command history index: {_index} [{Terminal.CommandHistory[_index]}]");
+                Log.Debug("Command history index: {Index} [{S}]", _index, Terminal.CommandHistory[_index]);
                 textBox.Text = Terminal.CommandHistory[_index];
                 break;
             }
@@ -81,8 +81,8 @@ public partial class MainWindow : Window
 
         Position = new PixelPoint((int)x, (int)y);
 
-        Log.Debug($"Screen working area: {screen.WorkingArea.Width}x{screen.WorkingArea.Height}");
-        Log.Debug($"Window opened with size: {Width}x{Height}");
+        Log.Debug("Screen working area: {WorkingAreaWidth}x{WorkingAreaHeight}", screen.WorkingArea.Width, screen.WorkingArea.Height);
+        Log.Debug("Window opened with size: {D}x{Height1}", Width, Height);
     }
 
     protected override void OnClosed(EventArgs e)

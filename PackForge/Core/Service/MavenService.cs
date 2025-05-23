@@ -35,9 +35,9 @@ public static class MavenService
             string xmlContent = await HttpClient.GetStringAsync(metadataUrl + "maven-metadata.xml");
             List<string> versionMatches = XDocument.Parse(xmlContent).Descendants("version").Select(e => e.Value).ToList();
 
-            Log.Debug($"Fetched {versionMatches.Count} versions from Maven metadata XML for {loaderType}");
+            Log.Debug("Fetched {VersionMatchesCount} versions from Maven metadata XML for {LoaderType}", versionMatches.Count, loaderType);
 
-            Log.Debug($"Minecraft Version: {mcVersion}");
+            Log.Debug("Minecraft Version: {McVersion}", mcVersion);
 
             if (loaderType.Equals("NeoForge"))
             {
@@ -54,7 +54,7 @@ public static class MavenService
                     _ => $"{versionParts[1]}.0"
                 };
 
-                Log.Debug($"Minecraft Version after schema conversion: {mcVersion}");
+                Log.Debug("Minecraft Version after schema conversion: {McVersion}", mcVersion);
             }
 
             string expectedPrefix = loaderType switch
@@ -64,22 +64,22 @@ public static class MavenService
                 _ => ""
             };
 
-            Log.Debug($"Expected prefix: {expectedPrefix}");
+            Log.Debug("Expected prefix: {ExpectedPrefix}", expectedPrefix);
 
             List<string> filteredVersions = versionMatches.Where(v => v.StartsWith(expectedPrefix)).ToList();
 
             if (filteredVersions.Count == 0)
             {
-                Log.Error($"No versions found matching Minecraft version {mcVersion} in Maven metadata XML");
+                Log.Error("No versions found matching Minecraft version {McVersion} in Maven metadata XML", mcVersion);
                 return [];
             }
 
-            Log.Information($"Successfully returned available versions from maven for {loaderType} {mcVersion}");
+            Log.Information("Successfully returned available versions from maven for {LoaderType} {McVersion}", loaderType, mcVersion);
             return filteredVersions;
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to fetch available Loader versions from Maven: {ex.Message}");
+            Log.Error("Failed to fetch available Loader versions from Maven: {ExMessage}", ex.Message);
             return [];
         }
     }
@@ -91,7 +91,7 @@ public static class MavenService
 
         string loader = Join("-", loaderType, loaderVersion).ToLowerInvariant();
 
-        Log.Debug($"Downloading {loader} from Maven");
+        Log.Debug("Downloading {Loader} from Maven", loader);
 
         string installerUrl = loaderType switch
         {
@@ -100,7 +100,7 @@ public static class MavenService
             _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
 
-        Log.Debug($"Installer URL: {installerUrl}");
+        Log.Debug("Installer URL: {InstallerUrl}", installerUrl);
 
         string destinationFile = loaderType switch
         {
@@ -109,18 +109,18 @@ public static class MavenService
             _ => throw new ArgumentException($"Unknown loader: {loaderType}")
         };
 
-        Log.Debug($"Destination file: {destinationFile}");
+        Log.Debug("Destination file: {DestinationFile}", destinationFile);
 
         try
         {
             byte[] fileBytes = await HttpClient.GetByteArrayAsync(installerUrl);
             await File.WriteAllBytesAsync(destinationFile, fileBytes);
 
-            Log.Information($"{loader} downloaded to {savePath}");
+            Log.Information("{Loader} downloaded to {SavePath}", loader, savePath);
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to download {loader}: {ex.Message}");
+            Log.Error("Failed to download {Loader}: {ExMessage}", loader, ex.Message);
         }
     }
 }

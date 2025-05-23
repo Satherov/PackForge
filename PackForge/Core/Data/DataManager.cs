@@ -52,7 +52,7 @@ public static class DataManager
             }
             catch (Exception ex2)
             {
-                Log.Error($"Error loading config: {ex2.Message}");
+                Log.Error("Error loading config: {Ex2Message}", ex2.Message);
             }
         }
     }
@@ -68,7 +68,7 @@ public static class DataManager
         }
         catch (Exception ex)
         {
-            Log.Error($"Error saving config: {ex.Message}");
+            Log.Error("Error saving config: {ExMessage}", ex.Message);
         }
     }
 
@@ -79,11 +79,11 @@ public static class DataManager
             if (propertyExpression.Body is MemberExpression { Member: PropertyInfo property })
                 return (T?)property.GetValue(_container);
 
-            Log.Warning($"Invalid property expression: {propertyExpression}. Unable to get value");
+            Log.Warning("Invalid property expression: {PropertyExpression}. Unable to get value", propertyExpression);
         }
         catch (Exception e)
         {
-            Log.Error($"Error retrieving config value for '{propertyExpression}': {e.Message}");
+            Log.Error("Error retrieving config value for '{PropertyExpression}': {EMessage}", propertyExpression, e.Message);
         }
 
         return default;
@@ -95,7 +95,7 @@ public static class DataManager
         {
             if (propertyExpression.Body is not MemberExpression { Member: PropertyInfo property })
             {
-                Log.Warning($"Invalid property expression: {propertyExpression}. Unable to set value");
+                Log.Warning("Invalid property expression: {PropertyExpression}. Unable to set value", propertyExpression);
                 return;
             }
 
@@ -103,11 +103,11 @@ public static class DataManager
 
             string? formattedValue = value is IEnumerable<string> list ? $"[{string.Join(", ", list)}]" : value?.ToString();
 
-            Log.Debug($"Set '{property.Name}' to {formattedValue}");
+            Log.Debug("Set '{PropertyName}' to {FormattedValue}", property.Name, formattedValue);
         }
         catch (Exception e)
         {
-            Log.Error($"Error setting config value for '{propertyExpression}': {e.Message}");
+            Log.Error("Error setting config value for '{PropertyExpression}': {EMessage}", propertyExpression, e.Message);
         }
     }
 
@@ -142,7 +142,7 @@ public static class DataManager
             }
             catch
             {
-                Log.Warning($"DataFix: Failed to convert '{key}' to type '{prop.PropertyType}'. Using default value");
+                Log.Warning("DataFix: Failed to convert '{Key}' to type '{PropPropertyType}'. Using default value", key, prop.PropertyType);
                 object? defaultValue = prop.GetValue(defaultContainer);
                 jsonObject[key] = JsonSerializer.SerializeToNode(defaultValue, JsonOptions);
             }

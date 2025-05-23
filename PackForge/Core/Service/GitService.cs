@@ -124,7 +124,7 @@ public static partial class GitService
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to clone repository: {ex.Message}");
+            Log.Error("Failed to clone repository: {ExMessage}", ex.Message);
         }
     }
 
@@ -158,7 +158,7 @@ public static partial class GitService
             CredentialsProvider = (_, _, _) => new UsernamePasswordCredentials { Username = "x-access-token", Password = githubToken }
         };
 
-        await Task.Run(() => Commands.Fetch(repo, "origin", Array.Empty<string>(), fetchOpts, null), ct);
+        await Task.Run(() => Commands.Fetch(repo, "origin", [], fetchOpts, null), ct);
         Branch? remoteBranch = repo.Branches[$"origin/{repoInfo.DefaultBranch}"];
         Branch? localBranch = repo.Branches[repoInfo.DefaultBranch] ?? repo.CreateBranch(repoInfo.DefaultBranch, remoteBranch.Tip);
 
@@ -174,7 +174,7 @@ public static partial class GitService
     {
         if (!Repository.IsValid(GitRepoPath))
         {
-            Log.Warning($"No valid Git repository at {GitRepoPath}");
+            Log.Warning("No valid Git repository at {S}", GitRepoPath);
             return;
         }
 
@@ -193,23 +193,23 @@ public static partial class GitService
             foreach (StatusEntry? e in status.Where(e =>
                          e.State.HasFlag(FileStatus.NewInIndex) || e.State.HasFlag(FileStatus.ModifiedInIndex) || e.State.HasFlag(FileStatus.DeletedFromIndex) ||
                          e.State.HasFlag(FileStatus.RenamedInIndex) || e.State.HasFlag(FileStatus.TypeChangeInIndex)))
-                Log.Information($"Staged:   {e.FilePath} ({e.State})");
+                Log.Information("Staged:   {EFilePath} ({FileStatus})", e.FilePath, e.State);
 
             // Unstaged (workdir) changes
             foreach (StatusEntry? e in status.Where(e =>
                          e.State.HasFlag(FileStatus.NewInWorkdir) || e.State.HasFlag(FileStatus.ModifiedInWorkdir) || e.State.HasFlag(FileStatus.DeletedFromWorkdir) ||
                          e.State.HasFlag(FileStatus.RenamedInWorkdir) || e.State.HasFlag(FileStatus.TypeChangeInWorkdir)))
-                Log.Information($"Modified: {e.FilePath} ({e.State})");
+                Log.Information("Modified: {EFilePath} ({FileStatus})", e.FilePath, e.State);
 
             // Untracked files
             foreach (StatusEntry? e in status.Where(e => e.State == FileStatus.NewInWorkdir && e.State.HasFlag(FileStatus.Ignored) == false))
-                Log.Information($"Untracked:{e.FilePath}");
+                Log.Information("Untracked:{EFilePath}", e.FilePath);
 
             // Ignored files
-            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Ignored))) Log.Information($"Ignored:  {e.FilePath}");
+            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Ignored))) Log.Information("Ignored:  {EFilePath}", e.FilePath);
 
             // Conflicts
-            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Conflicted))) Log.Information($"Conflict: {e.FilePath}");
+            foreach (StatusEntry? e in status.Where(e => e.State.HasFlag(FileStatus.Conflicted))) Log.Information("Conflict: {EFilePath}", e.FilePath);
         }, ct);
     }
 
@@ -219,7 +219,7 @@ public static partial class GitService
 
         if (!Repository.IsValid(GitRepoPath))
         {
-            Log.Warning($"Cannot stage files: no valid repo at {GitRepoPath}");
+            Log.Warning("Cannot stage files: no valid repo at {S}", GitRepoPath);
             return 0;
         }
 
@@ -236,22 +236,22 @@ public static partial class GitService
                 if (allFiles.Length > 0)
                 {
                     Commands.Stage(repo, allFiles);
-                    Log.Debug($"Staged directory '{path}' ({allFiles.Length} files)");
+                    Log.Debug("Staged directory '{Path}' ({AllFilesLength} files)", path, allFiles.Length);
                     return 1;
                 }
 
-                Log.Warning($"Directory '{path}' is empty");
+                Log.Warning("Directory '{Path}' is empty", path);
                 return 0;
             }
 
             if (File.Exists(fullPath))
             {
                 Commands.Stage(repo, fullPath);
-                Log.Debug($"Staged file '{path}'");
+                Log.Debug("Staged file '{Path}'", path);
                 return 1;
             }
 
-            Log.Warning($"Path not found: '{path}'");
+            Log.Warning("Path not found: '{Path}'", path);
             return 0;
         }, ct);
 
@@ -290,7 +290,7 @@ public static partial class GitService
             filesToCommit = repo.Index.Select(entry => entry.Path);
         }
 
-        foreach (string file in filesToCommit) Log.Debug($"File to commit: {file}");
+        foreach (string file in filesToCommit) Log.Debug("File to commit: {File}", file);
 
 
         GitHubUserInfo userInfo = await GetUserInfoAsync(token, ct);
@@ -319,7 +319,7 @@ public static partial class GitService
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to commit changes: {ex.Message}");
+            Log.Error("Failed to commit changes: {ExMessage}", ex.Message);
             return false;
         }
 
@@ -386,7 +386,7 @@ public static partial class GitService
         }
 
         foreach (Commit commit in newCommits)
-            Log.Debug($"Pushing commit: {commit.MessageShort} - {commit.Sha}");
+            Log.Debug("Pushing commit: {CommitMessageShort} - {CommitSha}", commit.MessageShort, commit.Sha);
 
         PushOptions pushOptions = new()
         {
@@ -401,7 +401,7 @@ public static partial class GitService
         string pushRefSpec = $"refs/heads/{localBranch.FriendlyName}:refs/heads/{localBranch.FriendlyName}";
         repo.Network.Push(remote, pushRefSpec, pushOptions);
 
-        Log.Information($"Branch '{localBranch.FriendlyName}' pushed successfully to remote with URL '{url}'");
+        Log.Information("Branch '{LocalBranchFriendlyName}' pushed successfully to remote with URL '{Url}'", localBranch.FriendlyName, url);
     }
 
 
@@ -415,7 +415,7 @@ public static partial class GitService
         HttpResponseMessage response = await client.GetAsync(apiUrl, ct);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Error($"GitHub API call to {apiUrl} failed with status code: {response.StatusCode}");
+            Log.Error("GitHub API call to {ApiUrl} failed with status code: {ResponseStatusCode}", apiUrl, response.StatusCode);
             return null;
         }
 

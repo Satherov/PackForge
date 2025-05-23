@@ -22,7 +22,7 @@ public static class Terminal
 
     public static async Task RunCommand(string input)
     {
-        Log.Information($"Dispatching command: {input}");
+        Log.Information("Dispatching command: {Input}", input);
         try
         {
             CommandHistory.Add(input);
@@ -30,11 +30,11 @@ public static class Terminal
         }
         catch (InvalidCommandException ex)
         {
-            Log.Error($"Invalid command: {ex.Message}");
+            Log.Error("Invalid command: {ExMessage}", ex.Message);
         }
         catch (Exception ex)
         {
-            Log.Error($"Unexpected error while trying to execute command: {ex.Message}");
+            Log.Error("Unexpected error while trying to execute command: {ExMessage}", ex.Message);
         }
     }
 }

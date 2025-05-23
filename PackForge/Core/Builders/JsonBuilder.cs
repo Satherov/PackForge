@@ -40,7 +40,7 @@ public abstract class JsonBuilder
                 {
                     new JObject
                     {
-                        ["id"] = string.Join("-", loaderType.ToLowerInvariant(), loaderVersion),
+                        ["id"] = SimplifyVersionString(string.Join("-", loaderType.ToLowerInvariant(), loaderVersion)),
                         ["primary"] = true
                     }
                 },
@@ -58,12 +58,12 @@ public abstract class JsonBuilder
         await File.WriteAllTextAsync(Path.Combine(path, "manifest.json"), manifest.ToString(), ct);
 
         stopwatch.Stop();
-        Log.Information($"Manifest generation took {stopwatch.ElapsedMilliseconds}ms");
+        Log.Information("Manifest generation took {StopwatchElapsedMilliseconds}ms", stopwatch.ElapsedMilliseconds);
     }
 
     private static async Task<JArray> ProcessMinecraftInstanceAsync(string pathToJson, string path, CancellationToken ct)
     {
-        Log.Information($"Processing {Path.GetFileName(pathToJson)}");
+        Log.Information("Processing {GetFileName}", Path.GetFileName(pathToJson));
 
         string modsFolder = Path.Combine(path, "mods");
         if (!Validator.DirectoryExists(modsFolder)) return [];
@@ -86,7 +86,7 @@ public abstract class JsonBuilder
                 foreach (JToken addon in ProcessFolderAsync(folder, installedAddons, ct))
                     matchedEntries.Add(addon);
             else
-                Log.Debug($"{Path.GetFileName(folder)} folder doesnt exist");
+                Log.Debug("{GetFileName} folder doesnt exist", Path.GetFileName(folder));
 
             if (installedAddons.Count <= 0)
             {
@@ -96,7 +96,7 @@ public abstract class JsonBuilder
 
             Log.Debug("Unmatched entries:");
             foreach (JToken leftover in installedAddons)
-                Log.Debug($"fileName: {leftover["installedFile"]?["fileName"]}, addonID: {leftover["addonID"]}, fileID: {leftover["installedFile"]?["id"]}");
+                Log.Debug("fileName: {JToken}, addonID: {JToken1}, fileID: {JToken2}", leftover["installedFile"]?["fileName"], leftover["addonID"], leftover["installedFile"]?["id"]);
         }
 
         File.Delete(pathToJson);
@@ -105,14 +105,14 @@ public abstract class JsonBuilder
 
     private static JArray ProcessFolderAsync(string folderPath, JArray installedAddons, CancellationToken ct)
     {
-        Log.Debug($"Checking {folderPath}");
+        Log.Debug("Checking {FolderPath}", folderPath);
 
         JArray matchedEntries = [];
         List<string> enumerateFiles = Directory.EnumerateFiles(folderPath).ToList();
 
         if (enumerateFiles.Count == 0)
         {
-            Log.Debug($"No files found in {Path.GetFileName(folderPath)}");
+            Log.Debug("No files found in {GetFileName}", Path.GetFileName(folderPath));
             return matchedEntries;
         }
 
@@ -131,11 +131,17 @@ public abstract class JsonBuilder
                 ["required"] = true
             });
 
-            Log.Debug($"Match found for {fileName}: addonID: {match["addonID"]}, fileID: {match["installedFile"]?["id"]}");
+            Log.Debug("Match found for {FileName}: addonID: {JToken}, fileID: {JToken1}", fileName, match["addonID"], match["installedFile"]?["id"]);
             installedAddons.Remove(match);
             File.Delete(filePath);
         }
 
         return matchedEntries;
+    }
+    
+    private static string SimplifyVersionString(string input)
+    {
+        string[] parts = input.Split('-');
+        return parts.Length > 2 ? $"{parts[0]}-{parts[^1]}" : input;
     }
 }

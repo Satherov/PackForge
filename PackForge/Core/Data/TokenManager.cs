@@ -52,7 +52,7 @@ public class TokenStore
         if (!token.IsEmpty)
             return true;
 
-        Log.Debug($"{type} token not found in memory");
+        Log.Debug("{TokenType} token not found in memory", type);
         return false;
     }
 
@@ -72,7 +72,7 @@ public class TokenStore
         if (token != null)
             _tokens.Remove(token);
         else
-            Log.Warning($"No token of type {type} found to remove");
+            Log.Warning("No token of type {TokenType} found to remove", type);
     }
 }
 
@@ -108,7 +108,7 @@ internal static class TokenManager
         if (Validator.FileExists(filePath, LogEventLevel.Debug))
             File.Delete(filePath);
 
-        Log.Debug($"Storing '{type}' token");
+        Log.Debug("Storing '{TokenType}' token", type);
 
         byte[] encryptedTokenBytes = EncryptToken(new Token(type, value));
         TokenStore.UpsertToken(new Token(type, Convert.ToBase64String(encryptedTokenBytes)));
@@ -119,7 +119,7 @@ internal static class TokenManager
         }
         catch (Exception e)
         {
-            Log.Error($"Error writing token file: {e.Message}");
+            Log.Error("Error writing token file: {EMessage}", e.Message);
         }
     }
 
@@ -128,7 +128,7 @@ internal static class TokenManager
         try
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            Log.Debug($"Retrieving token of type '{tokenType}'");
+            Log.Debug("Retrieving token of type '{TokenType}'", tokenType);
 
             string memoryToken = string.Empty;
             if (TokenStore.TryGetTokenByType(tokenType, out Token tokenFromMemory) && !tokenFromMemory.IsEmpty)
@@ -142,19 +142,19 @@ internal static class TokenManager
             byte[] encryptedTokenBytes = !string.IsNullOrWhiteSpace(memoryToken) ? Convert.FromBase64String(memoryToken) : diskTokenBytes;
             string decrypted = DecryptToken(encryptedTokenBytes, tokenType);
 
-            Log.Debug($"Token retrieval completed in {stopwatch.ElapsedMilliseconds}ms");
+            Log.Debug("Token retrieval completed in {StopwatchElapsedMilliseconds}ms", stopwatch.ElapsedMilliseconds);
             return decrypted;
         }
         catch (Exception e)
         {
-            Log.Error($"Error retrieving token: {e.Message}");
+            Log.Error("Error retrieving token: {EMessage}", e.Message);
             return Token.Empty.Value;
         }
     }
 
     private static byte[] EncryptToken(Token token)
     {
-        Log.Information($"Encrypting token '{token.Type}'");
+        Log.Information("Encrypting token '{TokenType}'", token.Type);
         try
         {
             if (!IsWindows)
@@ -173,14 +173,14 @@ internal static class TokenManager
         }
         catch (Exception e)
         {
-            Log.Error($"Failed to encrypt token: {e.Message}");
+            Log.Error("Failed to encrypt token: {EMessage}", e.Message);
             return [];
         }
     }
 
     private static string DecryptToken(byte[] encryptedToken, TokenType tokenType)
     {
-        Log.Debug($"Decrypting token '{tokenType}'");
+        Log.Debug("Decrypting token '{TokenType}'", tokenType);
         try
         {
             if (!IsWindows)
@@ -198,7 +198,7 @@ internal static class TokenManager
         }
         catch (Exception e)
         {
-            Log.Error($"Failed to decrypt token: {e.Message}");
+            Log.Error("Failed to decrypt token: {EMessage}", e.Message);
             return string.Empty;
         }
     }

@@ -63,7 +63,7 @@ public class TokenWindowViewModel : ReactiveObject
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to open page: {ex.Message}");
+            Log.Error("Failed to open page: {ExMessage}", ex.Message);
         }
 
         return Task.CompletedTask;

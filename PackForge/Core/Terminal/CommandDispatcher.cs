@@ -61,7 +61,7 @@ public class CommandDispatcher
                 }
 
                 IEnumerable<string> displayParts = bestPath.Select(node => context.Arguments.TryGetValue(node.Name, out object? val) ? $"<{node.Name}:{val}>" : node.Name);
-                Log.Debug($"Executing: {string.Join(" ", displayParts)}");
+                Log.Debug("Executing: {Join}", string.Join(" ", displayParts));
 
                 await bestPath.Last().Action(context);
                 return;
