@@ -244,47 +244,50 @@ public static class FileUtil
 
     private static void LogFilterResults(ModInfo mod, ModInfo parent, bool client, bool jarInJar = false)
     {
-        string prefix = jarInJar ? $"JarInJar '{mod.Metadata.DisplayName}' found within " : string.Empty;
+        string fileName = Path.GetFileName(parent.FilePath);
+        string? prefix = jarInJar ? $"JarInJar '{mod.Metadata.DisplayName}' found within " : null;
+        if (string.IsNullOrEmpty(prefix)) fileName = prefix + fileName;
+            
 
         if (DataManager.ExcludedCommon.Contains(mod.Metadata.ModId))
         {
-            Log.Warning("{Prefix}'{GetFileName}' matching {MetadataModId} is excluded. Deleting...", prefix, Path.GetFileName(parent.FilePath), mod.Metadata.ModId);
+            Log.Warning("{GetFileName} matching {MetadataModId} is excluded. Deleting...", fileName, mod.Metadata.ModId);
             File.Delete(parent.FilePath);
         }
 
         foreach (string dependency in mod.Metadata.Dependencies.Where(dependency => DataManager.ExcludedCommon.Contains(dependency)))
-            Log.Warning("{Prefix}'{GetFileName}' depends on an excluded mod {Dependency}", prefix, Path.GetFileName(parent.FilePath), dependency);
+            Log.Warning("{GetFileName} depends on an excluded mod {Dependency}", fileName, dependency);
 
         switch (client)
         {
             case true when DataManager.ExcludedClient.Contains(mod.Metadata.ModId):
-                Log.Warning("{Prefix}'{GetFileName}' containing {MetadataModId} is excluded on the client. Deleting...", prefix, Path.GetFileName(parent.FilePath), mod.Metadata.ModId);
+                Log.Warning("{GetFileName} containing {MetadataModId} is excluded on the client. Deleting...", fileName, mod.Metadata.ModId);
                 File.Delete(parent.FilePath);
 
                 foreach (string dependency in mod.Metadata.Dependencies.Where(dependency => DataManager.ExcludedClient.Contains(dependency)))
-                    Log.Warning("{Prefix}'{GetFileName}' depends on an excluded mod {Dependency}", prefix, Path.GetFileName(parent.FilePath), dependency);
+                    Log.Warning("'{GetFileName}' depends on an excluded mod {Dependency}", fileName, dependency);
                 break;
 
             case false when DataManager.ExcludedServer.Contains(mod.Metadata.ModId):
-                Log.Warning("{Prefix}'{GetFileName}' containing {MetadataModId} is excluded on the server. Deleting...", prefix, Path.GetFileName(parent.FilePath), mod.Metadata.ModId);
+                Log.Warning("{GetFileName} containing {MetadataModId} is excluded on the server. Deleting...", fileName, mod.Metadata.ModId);
                 File.Delete(parent.FilePath);
 
                 foreach (string dependency in mod.Metadata.Dependencies.Where(dependency => DataManager.ExcludedServer.Contains(dependency)))
-                    Log.Warning("{Prefix}'{GetFileName}' depends on an excluded mod {Dependency}", prefix, Path.GetFileName(parent.FilePath), dependency);
+                    Log.Warning("{GetFileName} depends on an excluded mod {Dependency}", fileName, dependency);
                 break;
         }
 
         foreach (string author in mod.Metadata.Authors.Where(author => DataManager.ExcludedAuthors.Contains(author, StringComparer.InvariantCultureIgnoreCase)))
         {
-            Log.Warning("{Prefix}'{GetFileName}' contains Author '{Author}' who is excluded. Deleting...", prefix, Path.GetFileName(parent.FilePath), author);
+            Log.Warning("{GetFileName} contains Author {Author} who is excluded. Deleting...", fileName, author);
             File.Delete(parent.FilePath);
         }
 
         if (!mod.OnlyJarInJars && mod.ClassFileCount < DataManager.FlagDataOnly)
-            Log.Warning("{Prefix}'{GetFileName}' contains less classes than {FlagDataOnly} classes: {ModClassFileCount}", prefix, Path.GetFileName(parent.FilePath), DataManager.FlagDataOnly, mod.ClassFileCount);
+            Log.Warning("{GetFileName} contains less classes than {FlagDataOnly} classes: {ModClassFileCount}", fileName, DataManager.FlagDataOnly, mod.ClassFileCount);
 
         if (mod.IsMcreator && DataManager.FlagMcreator)
-            Log.Warning("{Prefix}'{GetFileName}' contains MCreator fragments", prefix, Path.GetFileName(parent.FilePath));
+            Log.Warning("{GetFileName} contains MCreator fragments", fileName);
 
         if (mod.NestedJars.Count == 0) return;
         foreach (ModInfo jarMod in mod.NestedJars) LogFilterResults(jarMod, mod, client);
