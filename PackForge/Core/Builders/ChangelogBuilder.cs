@@ -150,8 +150,8 @@ public static class ChangelogGenerator
         Log.Debug("Waiting for versioned export to finish");
         await copyTask;
         Log.Debug("Cleaning up old export directories");
-        //Directory.Delete(oldExportDir, true);
-        //Directory.Move(newExportDir, oldExportDir);
+        Directory.Delete(oldExportDir, true);
+        Directory.Move(newExportDir, oldExportDir);
     }
 
     internal static async Task<List<ModEntry>> GetModsDiffAsync(string oldExport, string newExport, CancellationToken ct = default)
