@@ -92,7 +92,7 @@ public class FileCopyHelperTests : IDisposable
 
         await FileCopyHelper.CopyFilesAsync(
             tempSource,
-            tempTarget, [Rule.None]);
+            tempTarget, [Rule.All]);
 
         Assert.True(File.Exists(Path.Combine(tempTarget, Path.GetFileName(sourceFile))));
     }
